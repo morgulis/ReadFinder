@@ -80,6 +80,8 @@ CBatch::CBatch( CSearchContext & ctx, size_t batch_num )
     stat_[StatParams::N_PAIRED_READS] = reads_->GetNPaired();
     */
 
+    ctx_.n_reads += reads_->GetNReads();
+
     // estimate the number of sub-batches
     //
     {

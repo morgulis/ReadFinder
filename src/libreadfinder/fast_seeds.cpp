@@ -2692,6 +2692,7 @@ inline void CFastSeeds::ComputeSeeds()
                 std::vector< char > seq;
                 typedef SEQ_NS::CRecoder< eIUPACNA, eNCBI2NA > R;
                 typedef CReadData::SeqConstView SeqView;
+                bctx_.GetSearchCtx().n_reads += result.size();
                 /*
                 bctx_.GetStat()[CBatch::StatParams::N_MAPPED_READS] +=
                     result.size();
