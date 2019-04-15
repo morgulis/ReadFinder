@@ -47,10 +47,7 @@ READFINDER_NS_BEGIN
 using namespace SEQ_NS;
 
 //==============================================================================
-/** Simple reference database for Matchhits.
-
-    \note This class will eventually be replaced by another designed
-          to unify sequence store of Srprism aligner and Matchhits.
+/** Simple reference database for Readfinder.
 */
 class CRefData 
 {

@@ -27,10 +27,6 @@
  *
  */
 
-/** \file libmatchhits/fast_seeds.cpp
-    \brief Internal seeder.
-*/
-
 #include <algorithm>
 #include <atomic>
 #include <chrono>

@@ -340,7 +340,7 @@ int main( int argc, char * argv[] )
     catch( std::exception const & e )
     {
         std::cerr << "ERROR: " << e.what() << std::endl;
-        std::cerr << "Run \"matchhits -h\" for usage information."
+        std::cerr << "Run \"readfinder -h\" for usage information."
                   << std::endl;
         return EXIT_FAILURE;
     }

@@ -67,7 +67,7 @@ void SearchSeeds( CSearchOptions const & opts )
                  "failed reads: " << ctx.seqs->GetNumFailedReads() );
     M_FORCE_LOG( ctx.logger_, "mapped reads: " << ctx.n_mapped_reads );
                  // "mapped reads: " << ctx.stat->at( MHStat::N_MAPPED_READS ) );
-    M_FORCE_LOG( ctx.logger_, "matchhits seeder: complete" );
+    M_FORCE_LOG( ctx.logger_, "readfinder search: complete" );
 }
 
 READFINDER_NS_END

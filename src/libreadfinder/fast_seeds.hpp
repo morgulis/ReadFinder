@@ -27,10 +27,6 @@
  *
  */
 
-/** \file libmatchhits/fast_seeds.hpp
-    \brief Internal seeder.
-*/
-
 #ifndef LIBREADFINDER_FAST_SEEDS_HPP
 #define LIBREADFINDER_FAST_SEEDS_HPP
 
