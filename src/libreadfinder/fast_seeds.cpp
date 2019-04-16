@@ -35,7 +35,6 @@
 
 #include <boost/format.hpp>
 
-// #include <libmatchhits/chain_estimator.hpp>
 #include <libreadfinder/fast_seeds.hpp>
 
 #include <libtools/taskarray.hpp>
@@ -50,7 +49,6 @@ CFastSeeds::CFastSeeds( CBatch & bctx, bool seeder_mode )
                       static_cast< CCommonContext & >( 
                           bctx.GetSearchCtx() ) ) ),
               *bctx.GetSearchCtx().refs ),
-      // wt_( TAlloc( bctx.GetSearchCtx().memmgr_ ) ),
       anchor_use_map_( ANCHOR_TBL_SIZE, false ),
       seeder_mode_( seeder_mode )
 {
@@ -737,13 +735,6 @@ struct CFastSeeds::SeedSearchJobData
     std::vector< ExtHashWord > ewords;
     std::vector< IndexEntry > idxwords;
     Hits results;
-    // BitSet marked_reads;
-
-#ifdef READ_COUNTS
-    typedef std::vector< size_t > ReadsStat;
-
-    ReadsStat reads_stat;
-#endif
 
     SeedSearchJobData & operator+=( SeedSearchJobData const & jd )
     {
@@ -751,21 +742,6 @@ struct CFastSeeds::SeedSearchJobData
         phits += jd.phits;
         pmisses += jd.pmisses;
         good_anchors += jd.good_anchors;
-
-        // marked_reads |= jd.marked_reads;
-
-#ifdef READ_COUNTS
-        if( jd.reads_stat.size() > reads_stat.size() )
-        {
-            reads_stat.resize( jd.reads_stat.size(), 0 );
-        }
-
-        for( size_t i( 0 ); i < jd.reads_stat.size(); ++i )
-        {
-            reads_stat[i] += jd.reads_stat[i];
-        }
-#endif
-
         return *this;
     }
 };
@@ -962,15 +938,6 @@ inline void CFastSeeds::SeedSearchJob::SaveHit(
         bool exact, int ins, int del, TReadOff posadj )
 {
     ++jd_.hits;
-
-    /*
-    if( o_.seeder_mode_ )
-    {
-        jd_.marked_reads.set( hw.readid );
-        return;
-    }
-    */
-
     TReadOff readoff( hw.hashoff + posadj + del - ins );
     Hit h { iw.pos + posadj, hw.readid, readoff,
             (uint8_t)(hw.strand - 1), (uint8_t)(hw.mate - 1), exact };
@@ -981,9 +948,6 @@ inline void CFastSeeds::SeedSearchJob::SaveHit(
     }
 
     jd_.results.push_back( h );
-#ifdef READ_COUNTS
-    ++jd_.reads_stat[hw.readid*2 + hw.mate - 1];
-#endif
 }
 
 //------------------------------------------------------------------------------
@@ -1895,535 +1859,12 @@ inline void CFastSeeds::ReadMarkingJob::operator()()
     }
 }
 
-/*
-//==============================================================================
-struct CFastSeeds::HitFilteringJob
-{
-    static TSeqLen const MAX_MISMATCH = 8;
-    static TSeqLen const MAX_GAP = 4;
-    static size_t const MAX_CHAINS = 32;
-
-    typedef std::atomic< uint32_t > JobIdx;
-
-    struct StatParams
-    {
-        enum : size_t
-        {
-            N_SEEDER_HITS = 0,
-            N_EXTENDED_SEEDS,
-            N_SEEDER_EEXONS,
-            N_SEEDER_EXONS,
-            N_PRIMARY_SEEDS,
-            N_PARAMS
-        };
-    };
-
-    typedef Stat< StatParams::N_PARAMS > JobStat;
-
-    static JobStat::UpdateMap const JobStatMap;
-    static std::vector< std::string > const JobStatDescriptions;
-
-    typedef std::list< Exon > ExonList;
-    typedef std::vector< ExtSeed > ExtSeeds;
-    typedef std::vector< bool > SeedMarks;
-    typedef CSeedData::CIter SIter;
-    typedef CSeedData::SeedIter SeedIter;
-    typedef CSeedData::CSeedIter CSeedIter;
-    typedef CRefData::TRefOId RefOId;
-
-    HitFilteringJob( CFastSeeds & o, JobIdx & job_idx,
-                     std::vector< Hits > & hits,
-                     CProgress::ProgressHandle & ph );
-    void operator()();
-    void InitializeSeeds( Hits & hits );
-    void InitializeSeedsByRef();
-    void ProcessRead( SIter s, SIter e );
-    void EstimateExons( SIter s, bool exact );
-    void ProcessExonsForDiag(
-            SeedIter s, SeedIter e, uint8_t strand_idx, bool exact );
-    void UpdateExons( ExonList::iterator & s, ExonList::iterator e,
-                      Exon const & exon );
-    void EstimateChains( size_t exons_start );
-    size_t MarkChainSeeds();
-    void MarkExonSeeds();
-
-    CSeedData & GetSeeds() { return o_.seeds_->at( curr_job_idx_ ); }
-
-    CFastSeeds & o_;
-    JobIdx & job_idx_;
-    JobIdx curr_job_idx_;
-    std::vector< Hits > & hits_;
-    CProgress::ProgressHandle & ph_;
-    ExtSeeds ext_seeds_;
-    SeedMarks marks_,
-              exact_;
-    Exons exons_;
-    ExonList exon_list_;
-    ChainEstimator chains_;
-    TReadLen len_[2] = { 0, 0 };
-    JobStat stat_;
-};
-
-//------------------------------------------------------------------------------
-CFastSeeds::HitFilteringJob::JobStat::UpdateMap const
-CFastSeeds::HitFilteringJob::JobStatMap = {
-    CBatch::StatParams::N_SEEDER_HITS,
-    CBatch::StatParams::N_EXTENDED_SEEDS,
-    CBatch::StatParams::N_SEEDER_EEXONS,
-    CBatch::StatParams::N_SEEDER_EXONS,
-    CBatch::StatParams::N_PRIMARY_SEEDS,
-};
-
-std::vector< std::string > const
-CFastSeeds::HitFilteringJob::JobStatDescriptions = {
-    MHSTAT_N_SEEDER_HITS_DESCR,
-    MHSTAT_N_EXTENDED_SEEDS_DESCR,
-    MHSTAT_N_SEEDER_EEXONS_DESCR,
-    MHSTAT_N_SEEDER_EXONS_DESCR,
-    MHSTAT_N_PRIMARY_SEEDS_DESCR,
-};
-
-//------------------------------------------------------------------------------
-inline CFastSeeds::HitFilteringJob::HitFilteringJob(
-        CFastSeeds & o, JobIdx & job_idx, std::vector< Hits > & hits,
-        CProgress::ProgressHandle & ph )
-    : o_( o ), job_idx_( job_idx ), hits_( hits ), ph_( ph ),
-      chains_(
-          ChainEstimator::Params
-          {
-            o_.bctx_.GetSearchCtx().penalties,
-            o_.bctx_.GetSearchCtx().max_gene,
-            o_.bctx_.GetSearchCtx().min_intron,
-            o_.bctx_.GetSearchCtx().min_long_exon,
-            o_.bctx_.GetSearchCtx().penalties.intron_len_penalty_scale,
-            o_.bctx_.GetSearchCtx().penalties.intron_len_penalty_exp_scale,
-            o_.bctx_.GetSearchCtx().penalties.nth_intron_penalty
-          } )
-{
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HitFilteringJob::InitializeSeedsByRef()
-{
-    std::sort( ext_seeds_.begin(), ext_seeds_.end(),
-               []( ExtSeed const & x, ExtSeed const & y )
-               {
-                   return x.key == y.key ?
-                          x.seed.GetDiag() == y.seed.GetDiag() ?
-                          x.seed.readpos < y.seed.readpos :
-                          x.seed.GetDiag() < y.seed.GetDiag() :
-                          x.key < y.key;
-               } );
-
-    auto const & refs( o_.GetRefs() );
-    auto const & reads( o_.GetReads() );
-    uint32_t j( 0 );
-
-    for( size_t i( 0 ); i < ext_seeds_.size(); )
-    {
-        auto & seed( ext_seeds_[j] );
-        bool exact( seed.exact );
-        seed.Extend( refs, reads );
-
-        for( ++i; i < ext_seeds_.size(); ++i )
-        {
-            auto const & next_seed( ext_seeds_[i] );
-
-            if( !seed.Overlaps( next_seed, 0 ) )
-            {
-                ext_seeds_[++j] = next_seed;
-                break;
-            }
-            else
-            {
-                if( !exact && next_seed.exact )
-                {
-                    seed = next_seed;
-                    seed.Extend( refs, reads );
-                }
-
-                exact = (exact || seed.exact);
-            }
-        }
-    }
-
-    ext_seeds_.resize( j + 1 );
-    auto & seeds( GetSeeds() );
-
-    for( auto ib( ext_seeds_.begin() ), ie( ext_seeds_.end() ); ib != ie; )
-    {
-        auto r( std::equal_range(
-                    ib, ie, *ib,
-                    []( ExtSeed const & x, ExtSeed const & y )
-                    { return x.key < y.key; } ) );
-        seeds.Append( r.first->key, r.first, r.second,
-                      [this]( ExtSeed const & x )
-                      {
-                            exact_.push_back( x.exact );
-                            return x.seed;
-                      } );
-        ib = r.second;
-    }
-
-    stat_[StatParams::N_EXTENDED_SEEDS] += ext_seeds_.size();
-    ext_seeds_.clear();
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HitFilteringJob::InitializeSeeds( Hits & hits )
-{
-    stat_[StatParams::N_SEEDER_HITS] = hits.size();
-    std::sort( hits.begin(), hits.end(),
-               []( Hit const & x, Hit const & y )
-               { return x.refpos < y.refpos; } );
-    auto const & refs( o_.GetRefs() );
-    Hits::const_iterator hi( hits.begin() ),
-                         hie( hits.end() ),
-                         hc( hi );
-
-    for( size_t i( 0 ), ie( refs.GetSize() ); i < ie; ++i )
-    {
-        auto refpos_range( o_.fsidx_.GetAbsPosRange( i ) );
-        for( ; hc != hie && hc->refpos < refpos_range.second; ++hc );
-
-        for( ; hi != hc; ++hi )
-        {
-            ext_seeds_.emplace_back( i, hi->read, hi->strand, hi->mate,
-                                     hi->refpos - refpos_range.first,
-                                     hi->readpos,
-                                     hi->exact ? (TReadLen)NMER_BASES
-                                               : (TReadLen)MIN_INEXACT_BASES,
-                                     hi->exact );
-        }
-
-        if( !ext_seeds_.empty() )
-        {
-            InitializeSeedsByRef();
-        }
-    }
-
-    {
-        Hits t;
-        t.swap( hits );
-    }
-
-    o_.seeds_->at( curr_job_idx_ ).SortKeys();
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HitFilteringJob::UpdateExons(
-        ExonList::iterator & s, ExonList::iterator e, Exon const & exon )
-{
-    for( ; s != e && s->end < exon.start; ++s );
-    auto c( s );
-    for( ; c != e && c->start < exon.end + MAX_GAP; ++c );
-
-    if( s != c )
-    {
-        --c;
-        s->start = std::min( s->start, exon.start );
-        s->end = std::max( c->end, exon.end );
-        s->src = exon.src;
-        auto i( s );
-        exon_list_.erase( ++i, ++c );
-    }
-    else
-    {
-        exon_list_.insert( s++, exon );
-    }
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HitFilteringJob::ProcessExonsForDiag(
-        SeedIter s, SeedIter e, uint8_t strand_idx, bool exact )
-{
-    auto d( s->GetDiag() );
-
-    for( auto i( exon_list_.begin() ); i != exon_list_.end(); )
-    {
-        if( i->start_diag + MAX_GAP < d )
-        {
-            exons_.push_back( *i );
-            i = exon_list_.erase( i );
-        }
-        else
-        {
-            ++i;
-        }
-    }
-
-    auto & seeds( GetSeeds() );
-    auto els( exon_list_.begin() ),
-         ele( exon_list_.end() );
-    bool exon_found( false );
-    Exon exon;
-
-    for( auto c( s ); c != e; ++c )
-    {
-        if( exact && !exact_[seeds.GetSeedIdx( c )] )
-        {
-            continue;
-        }
-
-        if( !exon_found )
-        {
-            exon_found = true;
-            exon = Exon{ c, d, c->readpos,
-                         (TReadOff)(c->readpos + c->len), strand_idx };
-        }
-        else if( exon.end + MAX_MISMATCH >= c->readpos )
-        {
-            exon.end = c->readpos + c->len;
-        }
-        else
-        {
-            UpdateExons( els, ele, exon );
-            exon = Exon{ c, d, c->readpos,
-                         (TReadOff)(c->readpos + c->len), strand_idx };
-        }
-    }
-
-    if( exon_found )
-    {
-        UpdateExons( els, ele, exon );
-    }
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HitFilteringJob::EstimateExons( SIter s, bool exact )
-{
-    static size_t const MAX_EXONS = 32;
-    size_t start_exon( exons_.size() );
-    auto & seeds( GetSeeds() );
-    auto ds( seeds.BeginSeed( *s ) ),
-         de( seeds.EndSeed( *s ) );
-
-    for( auto dc( ds ); ds != de; ds = dc )
-    {
-        for( ; dc != de && dc->GetDiag() == ds->GetDiag(); ++dc );
-        ProcessExonsForDiag( ds, dc, s->key.strand_idx, exact );
-    }
-
-    std::copy( exon_list_.begin(), exon_list_.end(),
-               std::back_inserter( exons_ ) );
-    exon_list_.clear();
-    auto new_exons( exons_.size() - start_exon );
-
-    if( new_exons > MAX_EXONS )
-    {
-        std::sort( exons_.begin() + start_exon, exons_.end(),
-                   []( Exon const & x, Exon const & y )
-                   { return x.GetLen() > y.GetLen(); } );
-        exons_.resize( start_exon + MAX_EXONS );
-    }
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HitFilteringJob::EstimateChains( size_t exons_start )
-{
-    chains_.Update( exons_.cbegin() + exons_start, exons_.cend(),
-                    len_[0], len_[1] );
-}
-
-//------------------------------------------------------------------------------
-inline size_t CFastSeeds::HitFilteringJob::MarkChainSeeds()
-{
-    size_t res( 0 );
-    auto const & seeds( GetSeeds() );
-
-    for( auto const & chain: chains_.GetChains() )
-    {
-        if( chain.chain_score < BIG_SCORE )
-        {
-            ++res;
-            auto s( chains_.GetChainData( chain ) );
-
-            for( ; s.first != s.second; ++s.first )
-            {
-                auto & seed_i( *s.first );
-                seed_i->chain_score = std::min( chain.chain_score,
-                                                seed_i->chain_score );
-                marks_[seeds.GetSeedIdx( seed_i )] = true;
-            }
-        }
-    }
-
-    return res;
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HitFilteringJob::MarkExonSeeds()
-{
-    auto const & seeds( GetSeeds() );
-
-    for( auto const & exon : exons_ )
-    {
-        marks_[seeds.GetSeedIdx( exon.src )] = true;
-    }
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HitFilteringJob::ProcessRead( SIter s, SIter e )
-{
-    auto const & reads( o_.GetReads() );
-    len_[0] = reads.GetLen( s->key.readid, ToMate( s->key.GetMateIdx() ) );
-    len_[1] = reads.GetLen( s->key.readid, ToMate( 1 - s->key.GetMateIdx() ) );
-
-    if( s->key.strand_idx != 0 )
-    {
-        std::swap( len_[0], len_[1] );
-    }
-
-    bool splice( !o_.bctx_.GetSearchCtx().no_splice );
-    auto max_chains( MAX_CHAINS );
-
-    if( splice )
-    {
-        chains_.Clear( max_chains );
-    }
-
-    auto start( s );
-
-    for( auto c( s ); s != e; )
-    {
-        size_t exons_start( exons_.size() );
-        for( ; c != e &&
-               c->key.refid == s->key.refid &&
-               c->key.cstrand_idx == s->key.cstrand_idx; ++c );
-        assert( c - s <= 2 );
-
-        if( s->key.strand_idx == 0 )
-        {
-            EstimateExons( s++, splice );
-        }
-
-        if( s != c )
-        {
-            assert( s->key.strand_idx == 1 );
-            EstimateExons( s++, splice );
-        }
-
-        if( splice )
-        {
-            EstimateChains( exons_start );
-        }
-    }
-
-    if( splice )
-    {
-        stat_[StatParams::N_SEEDER_EEXONS] += exons_.size();
-        auto n_chains( MarkChainSeeds() );
-        max_chains -= n_chains;
-        chains_.Clear( max_chains );
-        exons_.clear();
-
-        if( !o_.bctx_.GetSearchCtx().exact_seeds && n_chains < MAX_CHAINS )
-        {
-            s = start;
-
-            for( auto c( s ); s != e; )
-            {
-                size_t exons_start( exons_.size() );
-                for( ; c != e &&
-                       c->key.refid == s->key.refid &&
-                       c->key.cstrand_idx == s->key.cstrand_idx; ++c );
-                assert( c - s <= 2 );
-
-                if( s->key.strand_idx == 0 )
-                {
-                    EstimateExons( s++, false );
-                }
-
-                if( s != c )
-                {
-                    assert( s->key.strand_idx == 1 );
-                    EstimateExons( s++, false );
-                }
-
-                EstimateChains( exons_start );
-            }
-        }
-
-        MarkChainSeeds();
-    }
-    else
-    {
-        MarkExonSeeds();
-    }
-
-    stat_[StatParams::N_SEEDER_EXONS] += exons_.size();
-    exons_.clear();
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HitFilteringJob::operator()()
-{
-    while( true )
-    {
-        stat_.Clear();
-        curr_job_idx_ = job_idx_.fetch_add( 1 );
-        
-        if( curr_job_idx_ >= hits_.size() )
-        {
-            break;
-        }
-
-        auto job_acc( stat_.Accumulate( o_.bctx_.GetStat(), JobStatMap ) );
-        auto & hits( hits_[curr_job_idx_] );
-        InitializeSeeds( hits );
-        auto & seeds( GetSeeds() );
-        assert( exact_.size() == seeds.GetNSeeds() );
-        marks_.clear();
-        marks_.resize( seeds.GetNSeeds(), false );
-
-        for( auto sis( seeds.CBegin() ), sie( seeds.CEnd() ), sic( sis );
-             sis != sie; sis = sic )
-        {
-            for( ; sic != sie &&
-                   sic->key.readid == sis->key.readid &&
-                   sic->key.cstrand_idx == sis->key.cstrand_idx; ++sic );
-            ProcessRead( sis, sic );
-        }
-
-        seeds.Filter( [this]( CSeedIter si )
-                      {
-                            return marks_[GetSeeds().GetSeedIdx( si )];
-                      } );
-        exact_.clear();
-        stat_[StatParams::N_PRIMARY_SEEDS] = GetSeeds().GetNSeeds();
-        M_INFO( o_.bctx_.GetSearchCtx().logger_,
-                "job statistics for job " << curr_job_idx_ << ":\n" <<
-                stat_.Format( JobStatDescriptions ) );
-        ph_.Increment();
-    }
-}
-
-*/
-
 //------------------------------------------------------------------------------
 inline void CFastSeeds::ComputeSeeds()
 {
     auto & ctx( bctx_.GetSearchCtx() );
     auto const & refs( *ctx.refs );
     std::vector< SeedSearchJobData > jd( ctx.n_threads );
-
-    /*
-    if( seeder_mode_ )
-    {
-        for( auto & job_data : jd )
-        {
-            job_data.marked_reads.resize(
-                    bctx_.GetReads().GetNReads(), false );
-        }
-    }
-    */
-
-#ifdef READ_COUNTS
-    for( auto & j : jd )
-    {
-        j.reads_stat.resize( 2*reads_.GetNReads(), 0 );
-    }
-#endif
 
     if( refs.GetSize() > 0 )
     {
@@ -2446,32 +1887,10 @@ inline void CFastSeeds::ComputeSeeds()
 
     SeedSearchJobData jdsum;
 
-    /*
-    if( seeder_mode_ )
-    {
-        jdsum.marked_reads.resize(
-                bctx_.GetReads().GetNReads(), false );
-    }
-    */
-
     for( auto const & j : jd )
     {
         jdsum += j;
     }
-
-#ifdef READ_COUNTS
-    {
-        std::ofstream os( "./reads.stat" );
-
-        for( size_t i( 0 ); i < jdsum.reads_stat.size(); ++i )
-        {
-            os << "read_" << i/2 << '.' << i%2
-               << '\t' << jdsum.reads_stat[i] << '\n';
-        }
-
-        os << std::flush;
-    }
-#endif
 
     M_INFO( ctx.logger_, "hits: " << jdsum.hits <<
                           "; phits: " << jdsum.phits <<
@@ -2481,96 +1900,8 @@ inline void CFastSeeds::ComputeSeeds()
     // free memory used by reference and read index
     //
     fsidx_.Unload();
-    // { TAlloc a( ctx.memmgr_ ); WordTable t( a ); wt_.swap( t ); }
     { WordTable t; wt_.swap( t ); }
     { WordMap t; t.swap( wmap_ ); }
-
-    /*
-    if( seeder_mode_ )
-    {
-        BitSet mr;
-        mr.swap( jdsum.marked_reads );
-        auto & os( bctx_.GetSearchCtx().GetOutStream() );
-        auto const & reads( bctx_.GetReads() );
-        std::vector< char > seq;
-        typedef SEQ_NS::CRecoder< eIUPACNA, eNCBI2NA > R;
-        typedef CReadData::SeqConstView SeqView;
-
-        for( OrdId i( 0 ); i < reads.GetNReads(); ++i )
-        {
-            auto const & read( reads[i] );
-            std::string id( reads.GetReadId( i ) );
-
-            if( mr[i] )
-            {
-                if( read.mates_[0].len > 0 )
-                {
-                    auto len( read.mates_[0].len );
-                    os << ">" << id;
-
-                    if( read.ReadIsPaired() )
-                    {
-                        os << ".1";
-                    }
-
-                    os << '\n';
-                    seq.clear();
-                    seq.resize( len + 1, 0 );
-                    auto sd( reads.GetSeqData( i, eFIRST, eFWD ) ),
-                         md( reads.GetMaskData( i, eFIRST, eFWD ) );
-
-                    for( TSeqLen j( 0 ); j < len; ++j )
-                    {
-                        if( md.GetLetter( j ) == SeqView::Code::MASK_BASE )
-                        {
-                            seq[j] = 'N';
-                        }
-                        else
-                        {
-                            seq[j] = R::Recode( sd.GetLetter( j ) );
-                        }
-                    }
-
-                    os << &seq[0] << '\n';
-                }
-
-                if( read.mates_[1].len > 0 )
-                {
-                    auto len( read.mates_[1].len );
-                    os << ">" << id;
-
-                    if( read.ReadIsPaired() )
-                    {
-                        os << ".2";
-                    }
-
-                    os << '\n';
-                    seq.clear();
-                    seq.resize( len + 1, 0 );
-                    auto sd( reads.GetSeqData( i, eSECOND, eFWD ) ),
-                         md( reads.GetMaskData( i, eSECOND, eFWD ) );
-
-                    for( TSeqLen j( 0 ); j < len; ++j )
-                    {
-                        if( md.GetLetter( j ) == SeqView::Code::MASK_BASE )
-                        {
-                            seq[j] = 'N';
-                        }
-                        else
-                        {
-                            seq[j] = R::Recode( sd.GetLetter( j ) );
-                        }
-                    }
-
-                    os << &seq[0] << '\n';
-                }
-            }
-        }
-
-        os << std::flush;
-        return;
-    }
-    */
 
     // hit filtering
     //
@@ -2579,7 +1910,6 @@ inline void CFastSeeds::ComputeSeeds()
         assert( reads_per_job > 0 );
         size_t n_jobs( bctx_.GetReads().GetNReads()/reads_per_job + 1 );
         std::vector< Hits > filter_job_hits( n_jobs );
-        // seeds_.reset( new SeedData( n_jobs ) );
 
         // distribute hits accross jobs
         //
@@ -2632,7 +1962,6 @@ inline void CFastSeeds::ComputeSeeds()
             CProgress p( "filtering initial seeds", "tasks",
                          ctx.progress_flags_ );
             auto ph( p.GetTop() );
-            // ph.SetTotal( filter_job_hits.size() );
             ph.SetTotal( n_jobs );
 
             // if( seeder_mode_ )
@@ -2660,10 +1989,6 @@ inline void CFastSeeds::ComputeSeeds()
                            []( ReadMarkingJob::MarkedRead const & x,
                                ReadMarkingJob::MarkedRead const & y )
                            {
-                                /*
-                                return std::get< 0 >( x ) <
-                                       std::get< 0 >( y );
-                                */
                                 return std::get< 0 >( x )
                                             == std::get< 0 >( y ) ?
                                        std::get< 3 >( x )
@@ -2688,11 +2013,7 @@ inline void CFastSeeds::ComputeSeeds()
                 std::vector< char > seq;
                 typedef SEQ_NS::CRecoder< eIUPACNA, eNCBI2NA > R;
                 typedef CReadData::SeqConstView SeqView;
-                bctx_.GetSearchCtx().n_reads += result.size();
-                /*
-                bctx_.GetStat()[CBatch::StatParams::N_MAPPED_READS] +=
-                    result.size();
-                */
+                bctx_.GetSearchCtx().n_mapped_reads += result.size();
 
                 for( auto i : result )
                 {
@@ -2812,15 +2133,6 @@ inline void CFastSeeds::ComputeSeeds()
                     }
                 }
             }
-            /*
-            else
-            {
-                CTaskArray< HitFilteringJob > jobs(
-                        ctx.n_threads, *this, job_idx, filter_job_hits, ph );
-                p.Start();
-                jobs.Start();
-            }
-            */
 
             p.Stop();
         }
@@ -3186,18 +2498,6 @@ void CFastSeeds::Run()
     }
 
     ComputeSeeds();
-
-/*
-    if( !seeder_mode_ )
-    {
-        bctx_.GetSeeds().swap( *seeds_ );
-
-#ifdef SEEDER_ONLY
-        M_INFO( logger_, "experimental code: early exit" );
-        exit( 0 );
-#endif
-    }
-*/
 }
 
 READFINDER_NS_END

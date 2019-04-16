@@ -36,37 +36,16 @@
 READFINDER_NS_BEGIN
 
 //==============================================================================
-/*
-//------------------------------------------------------------------------------
-void Search( CSearchOptions const & opts )
-{
-    CSearchContext ctx( opts );
-
-    while( MakeBatch( ctx )->Run() )
-    {
-        ++(*ctx.stat)[MHStat::N_BATCHES];
-    }
-
-    M_INFO( ctx.logger_,
-            "search statistics:\n" <<
-            ctx.stat->Format( MHStat::Descriptions ) );
-    M_FORCE_LOG( ctx.logger_, "matchhits search: complete" );
-}
-*/
-
 //------------------------------------------------------------------------------
 void SearchSeeds( CSearchOptions const & opts )
 {
-    CSearchContext ctx( opts/* , false */ );
+    CSearchContext ctx( opts );
     size_t batch_num( 0 );
     while( MakeBatch( ctx, batch_num++ )->RunSeeder() );
-    // while( MakeBatch( ctx )->RunSeeder() );
     M_FORCE_LOG( ctx.logger_, "total reads: " << ctx.n_reads );
-                 // "total reads: " << ctx.stat->at( MHStat::N_READS ) );
     M_FORCE_LOG( ctx.logger_,
                  "failed reads: " << ctx.seqs->GetNumFailedReads() );
     M_FORCE_LOG( ctx.logger_, "mapped reads: " << ctx.n_mapped_reads );
-                 // "mapped reads: " << ctx.stat->at( MHStat::N_MAPPED_READS ) );
     M_FORCE_LOG( ctx.logger_, "readfinder search: complete" );
 }
 

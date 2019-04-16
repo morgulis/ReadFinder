@@ -55,10 +55,6 @@ private:
     static size_t const IDXMAP_SIZE = 1ULL + (1ULL<<ANCHOR_BITS);
     static size_t const MIN_IDX_CHUNK_SIZE = 128*1024*1024ULL;
 
-    /*
-    typedef std::vector< uint32_t, TAlloc > RefOffsets;
-    typedef std::vector< uint32_t, TAlloc > IndexMap;
-    */
     typedef std::vector< uint32_t > RefOffsets;
     typedef std::vector< uint32_t > IndexMap;
 
@@ -130,7 +126,6 @@ private:
 
     private:
 
-        // typedef std::vector< IndexEntry, TAlloc > Data;
         typedef std::vector< IndexEntry > Data;
 
         uint32_t start_anchor_,
@@ -141,7 +136,6 @@ private:
         bool loaded_ = false;
     };
 
-    // typedef std::vector< IndexChunk, TAlloc > Index;
     typedef std::vector< IndexChunk > Index;
     typedef std::vector< uint32_t > ChunkMap;
 
@@ -164,8 +158,6 @@ public:
 
     void Unload()
     {
-        // Index( TAlloc( ctx_->memmgr_ ) ).swap( idx_ );
-        // IndexMap( TAlloc( ctx_->memmgr_ ) ).swap( idxmap_ );
         Index().swap( idx_ );
         IndexMap().swap( idxmap_ );
         index_stream_.close();

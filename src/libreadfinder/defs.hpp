@@ -61,9 +61,6 @@ using namespace SEQ_NS;
 //------------------------------------------------------------------------------
 typedef uint64_t TWord;     ///< Common word size used to store sequence data.
 
-/** Allocator type to use for standard library containers. */
-// typedef CMonitoredAllocator< char > TAlloc;
-
 /** Number of bits in a NCBI2NA letter. */
 static size_t const LB = CCode< eNCBI2NA >::LBITS;
 

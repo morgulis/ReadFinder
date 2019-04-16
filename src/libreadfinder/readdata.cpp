@@ -149,7 +149,6 @@ auto CReadData::AddSeqData(
     if( !idset_ )
     {
         idset_.reset( new IdSet( IdSet::key_compare( &ids_ ) ) );
-                    // IdSet::key_compare( &ids_ ), TAlloc( memmgr_ ) ) );
     }
 
     size_t sz( ids_.size() );
@@ -177,11 +176,10 @@ auto CReadData::AddSeqData(
 
 //------------------------------------------------------------------------------
 CReadData::CReadData( 
-        /* std::shared_ptr< CMemMonitor > memmgr, */ CLogger & logger,
+        CLogger & logger,
         CSeqInput & seqs, size_t batch_size, int progress_flags
     )
     : CReadData()
-    // : CReadData( memmgr )
 {
     static size_t const MAX_READ_LEN = 32*1024;
 

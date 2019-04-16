@@ -40,48 +40,14 @@
 
 #include <libreadfinder/rf_ctx.hpp>
 #include <libreadfinder/readdata.hpp>
-// #include <libreadfinder/seeddata.hpp>
 #include <libreadfinder/defs.hpp>
 
 READFINDER_NS_BEGIN
 
 //==============================================================================
-class CBatch//  : private BatchDefs
+class CBatch
 {
 public:
-
-    struct StatParams
-    {
-        enum : size_t
-        {
-            N_READS = 0,
-            N_PAIRED_READS,
-            N_JOBS,
-            MAX_JOB_READS,
-
-            N_SEEDER_HITS,
-            N_EXTENDED_SEEDS,
-            N_SEEDER_EEXONS,
-            N_SEEDER_EXONS,
-            N_PRIMARY_SEEDS,
-            N_MAPPED_READS,
-
-            N_PARAMS
-        };
-    };
-
-    // typedef std::vector< CSeedData > SeedData;
-
-    struct SearchThread;    ///< Executes jobs sequentially in a thread.
-    struct SearchJob;       ///< Executes one job (one CSeedData instance).
-    struct TaskGroup;       ///< Process seeds for one read.
-    struct TaskDescriptor;  ///< Base of Task.
-    struct Task;            /**< Process seeds for a combination of
-                                 (readid, refid, fwd mate). */
-
-public:
-
-    // typedef Stat< StatParams::N_PARAMS > BatchStat;
 
     CBatch( CSearchContext & ctx, size_t batch_num = 0 );
     bool Run();
@@ -90,41 +56,29 @@ public:
     CSearchContext const & GetSearchCtx() const { return ctx_; }
     CSearchContext & GetSearchCtx() { return ctx_; }
     CReadData const & GetReads() const { return *reads_; }
-    // SeedData & GetSeeds() { return seeds_; }
-    // SeedData const & GetSeeds() const { return seeds_; }
     size_t GetJobSize() const { return reads_per_job_; }
-
-    // BatchStat & GetStat() { return stat_; }
 
 private:
 
     typedef std::vector< std::string * > OutStr;
 
-    // static BatchStat::UpdateMap const BatchStatMap;
     static std::vector< std::string > const BatchStatDescriptions;
 
     void OutputThread();
 
     CSearchContext & ctx_;
     std::unique_ptr< CReadData > reads_;
-    // SeedData seeds_;
     OutStr out_str_;
     std::mutex out_mtx_;
     std::condition_variable out_cvar_;
-    // BatchStat stat_;
     size_t reads_per_job_;
     size_t batch_num_ = 0;
 };
 
 //------------------------------------------------------------------------------
-// inline std::unique_ptr< CBatch > MakeBatch( CSearchContext & ctx )
 inline std::unique_ptr< CBatch > MakeBatch(
         CSearchContext & ctx, size_t batch_num )
 {
-    /*
-    return std::unique_ptr< CBatch >(
-            new CBatch( ctx, (*ctx.stat )[MHStat::N_BATCHES] ) );
-    */
     return std::unique_ptr< CBatch >( new CBatch( ctx, batch_num ) );
 }
 

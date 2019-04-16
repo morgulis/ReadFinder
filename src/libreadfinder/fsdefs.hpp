@@ -39,7 +39,6 @@ READFINDER_NS_BEGIN
 struct CFastSeedsDefs
 {
     typedef CRefData::TRefOId TRefOId;
-    // typedef std::vector< uint32_t, TAlloc > WordMap;
     typedef std::vector< uint32_t > WordMap;
 
     static ssize_t const ANCHOR_BASES = 9;

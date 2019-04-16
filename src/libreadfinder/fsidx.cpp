@@ -451,7 +451,6 @@ CFastSeedsIndex::IndexChunk::IndexChunk(
       idxmap_( &idxmap ),
       data_off_( idxmap[start_anchor] ),
       data_( idxmap[end_anchor] - idxmap[start_anchor], IndexEntry() ),
-             // IndexEntry(), TAlloc( ctx.memmgr_ ) ),
       loaded_( true )
 {
     assert( sz == data_.size()*sizeof( IndexEntry ) );
@@ -463,8 +462,7 @@ CFastSeedsIndex::IndexChunk::IndexChunk(
         size_t start_anchor, size_t end_anchor )
     : start_anchor_( start_anchor ), end_anchor_( end_anchor ),
       idxmap_( &idxmap ),
-      data_off_( idxmap[start_anchor] )// ,
-      // data_( TAlloc( ctx.memmgr_ ) )
+      data_off_( idxmap[start_anchor] )
 {
 }
 
@@ -504,7 +502,6 @@ void CFastSeedsIndex::IndexChunk::Load( std::ifstream & is )
 //------------------------------------------------------------------------------
 void CFastSeedsIndex::IndexChunk::Unload( CCommonContext & ctx )
 {
-    // Data( TAlloc( ctx.memmgr_ ) ).swap( data_ );
     Data().swap( data_ );
     loaded_ = false;
 }
@@ -512,13 +509,7 @@ void CFastSeedsIndex::IndexChunk::Unload( CCommonContext & ctx )
 //==============================================================================
 //------------------------------------------------------------------------------
 CFastSeedsIndex::CFastSeedsIndex( CommonCtxP ctx, CRefData const & refs )
-    : ctx_( ctx ), refs_( refs )// ,
-      /*
-      roff_( TAlloc( ctx_->memmgr_ ) ),
-      idxmap_( TAlloc( ctx_->memmgr_ ) ),
-      chunk_map_( TAlloc( ctx_->memmgr_ ) ),
-      idx_( TAlloc( ctx_->memmgr_ ) )
-      */
+    : ctx_( ctx ), refs_( refs )
 {
 }
 
@@ -595,7 +586,6 @@ void CFastSeedsIndex::SetUpChunks( bool allocate )
 CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
 {
     auto & logger( ctx_->logger_ );
-    // auto & memmgr( ctx_->memmgr_ );
     M_INFO( logger, "generating reference index" );
     ssize_t n_job_pos( 0 );
     std::vector< PopulateIndexJobData > pij_data;
@@ -635,13 +625,11 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
                 pij_data.push_back( PopulateIndexJobData {
                         i, i, (TSeqOff)p, (TSeqOff)(p + n_job_pos),
                         WordMap() } );
-                        // WordMap( TAlloc( memmgr ) ) } );
                 p += n_job_pos;
             }
 
             pij_data.push_back( PopulateIndexJobData {
                     i, i, (TSeqOff)p, (TSeqOff)p, WordMap() } );
-                    // WordMap( TAlloc( memmgr ) ) } );
             p += n_job_pos;
 
             while( p >= l && ++i < ie )

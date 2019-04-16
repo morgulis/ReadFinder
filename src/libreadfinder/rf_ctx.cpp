@@ -37,8 +37,7 @@ CCommonContext::CCommonContext( CommonOptions const & opts )
     : logger_( "readfinder", CLogger::LogHandler( 
                     opts.log_fname.empty() ? 
                         new CStreamLogHandler( "<stderr>", &std::cerr ) :
-                        new CFileLogHandler( opts.log_fname ) ) )// ,
-      // memmgr_( new CMemMonitor( opts.max_mem ) )
+                        new CFileLogHandler( opts.log_fname ) ) )
 {
     logger_.SetSeverity( opts.trace_level );
 
@@ -50,21 +49,9 @@ CCommonContext::CCommonContext( CommonOptions const & opts )
 
 //==============================================================================
 //------------------------------------------------------------------------------
-CSearchContext::CSearchContext( CSearchOptions const & opts/* , bool init_output  */)
-    : CCommonContext( opts ), CSearchOptions( opts )// ,
-      // run_second_pass( !no_splice && !one_pass )
+CSearchContext::CSearchContext( CSearchOptions const & opts )
+    : CCommonContext( opts ), CSearchOptions( opts )
 {
-    /*
-    penalties.Finalize();
-
-    if( penalties.intron_len_penalty_exp_scale <= 0.0 )
-    {
-        penalties.intron_len_penalty_exp_scale =
-            log( 2 )/max_internal_region;
-        assert( penalties.intron_len_penalty_exp_scale > 0.0 );
-    }
-    */
-
     Check();
     ResetOutStream();
 
@@ -72,17 +59,6 @@ CSearchContext::CSearchContext( CSearchOptions const & opts/* , bool init_output
     {
         ResetOutStream( output );
     }
-
-    /*
-    auto & os( *osp );
-
-    if( init_output )
-    {
-        os << "@HD\tVN:1.0\tGO:query\n";
-        os << "@PG\tID:readfinder\tPN:readfinder\tVN:" << opts.version_string
-           << "\tCL:" << opts.cmd_line << '\n';
-    }
-    */
 
     std::vector< std::string > fnames;
 
@@ -100,21 +76,7 @@ CSearchContext::CSearchContext( CSearchOptions const & opts/* , bool init_output
                             opts.input_format,
                             opts.start_read,
                             opts.end_read - opts.start_read ) );
-    // stat.reset( new SearchStat );
-    // refs.reset( new CRefData( opts.db_name ) );
-    // (*stat)[MHStat::N_REFS] = refs->GetSize();
-
-    /*
-    if( init_output )
-    {
-        for( size_t i( 0 ); i < refs->GetSize(); ++i )
-        {
-            os << "@SQ\tSN:" << refs->GetRefId( i )
-               << "\tLN:" << refs->GetLength( i ) << '\n';
-        }
-    }
-    */
-
+    refs.reset( new CRefData( opts.db_name ) );
     refs->LoadAll();
 }
 

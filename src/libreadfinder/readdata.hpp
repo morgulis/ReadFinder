@@ -43,8 +43,6 @@
 #include <libseq/seqview.hpp>
 
 #include <libtools/logger.hpp>
-// #include <libtools/memmgr.hpp>
-// #include <libtools/tracing.hpp>
 
 READFINDER_NS_BEGIN
 
@@ -62,13 +60,6 @@ public:
 
     struct Read;
 
-    /*
-    CReadData( std::shared_ptr< CMemMonitor > memmgr );
-    CReadData( std::shared_ptr< CMemMonitor > memmgr, CLogger & logger,
-               CSeqInput & seqs, size_t batch_size
-               , int progress_flags = 0
-             );
-    */
     CReadData();
     CReadData( CLogger & logger,
                CSeqInput & seqs, size_t batch_size
@@ -93,8 +84,6 @@ public:
 
 private:
 
-    // typedef std::vector< char, TAlloc > Ids;
-    // typedef std::vector< Read, TAlloc > ReadData;
     typedef std::vector< char > Ids;
     typedef std::vector< Read > ReadData;
 
@@ -112,7 +101,6 @@ private:
         Ids const * ids;
     };
 
-    // typedef std::set< IdHandle, IdHandleCompare, TAlloc > IdSet;
     typedef std::set< IdHandle, IdHandleCompare > IdSet;
 
     static ECoding const CODING = eNCBI2NA;
@@ -154,7 +142,6 @@ private:
     void ExtendBuffers( size_t len );
     void ExtendBuffer( size_t len );
 
-    // std::shared_ptr< CMemMonitor > memmgr_;
     std::unique_ptr< IdSet > idset_;
 
     Ids ids_;
@@ -243,14 +230,8 @@ inline auto CReadData::Reads::operator++() -> Reads &
 //==============================================================================
 // IMPLEMENTATION
 //==============================================================================
-// inline CReadData::CReadData( std::shared_ptr< CMemMonitor > memmgr )
 inline CReadData::CReadData()
-    : // memmgr_( memmgr ),
-      // ids_( TAlloc( memmgr_ ) ),
-      // reads_( TAlloc( memmgr_ ) ),
-      // seq_data_( TAlloc( memmgr_ ) ),
-      // mask_data_( TAlloc( memmgr_ ) ),
-      mask_cache_( 1 + std::numeric_limits< TReadLen >::max(), -1 )
+    : mask_cache_( 1 + std::numeric_limits< TReadLen >::max(), -1 )
 {
 }
 

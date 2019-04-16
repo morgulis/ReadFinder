@@ -34,13 +34,11 @@
 #include <memory>
 
 #include <libreadfinder/rf_options.hpp>
-// #include <libreadfinder/mh_stat.hpp>
 #include <libreadfinder/refdata.hpp>
 #include <libreadfinder/defs.hpp>
 
 #include <libtools/logger.hpp>
 #include <libtools/progress.hpp>
-// #include <libtools/stat.hpp>
 
 READFINDER_NS_BEGIN
 
@@ -49,7 +47,6 @@ struct CCommonContext
 {
     CCommonContext( CommonOptions const & opts );
     CLogger logger_;
-    // std::shared_ptr< CMemMonitor > memmgr_;
     int progress_flags_ = 0;
 };
 
@@ -64,11 +61,9 @@ private:
         std::ostream,
         std::function< void( std::ostream * ) > > OutStream;
 
-    // typedef TOOLS_NS::Stat< MHStat::N_PARAMS > SearchStat;
-
 public:
 
-    CSearchContext( CSearchOptions const & opts/* , bool init_output = true */ );
+    CSearchContext( CSearchOptions const & opts );
 
     void Check();
     std::ostream & GetOutStream() { return *osp; }
@@ -84,17 +79,8 @@ public:
         OutStream( &os, []( std::ostream * osp ){} ).swap( osp );
     }
 
-    /*
-    TScore GetScoreThreshold( TScore s ) const
-    {
-        return std::min( penalties.top_cutoff*s, 0.0f );
-    }
-    */
-
     std::unique_ptr< CSeqInput > seqs;
     std::unique_ptr< CRefData > refs;
-    // std::shared_ptr< SearchStat > stat;
-    // bool run_second_pass = false;
     size_t n_reads = 0,
            n_mapped_reads = 0;
 

@@ -252,10 +252,7 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
           "[default: 0.5]" )
         ( "per-mate-marks,m",
           po::bool_switch( &search_opts.per_mate_marks ),
-          "reporting on a per-mate basis" )
-        ( "exact-seeds",
-          po::bool_switch( &search_opts.exact_seeds ),
-          "use only exact hits" );
+          "reporting on a per-mate basis" );
 
     //==========================================================================
     // parse and process global options

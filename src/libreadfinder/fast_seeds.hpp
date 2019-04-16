@@ -37,7 +37,6 @@
 #include <libreadfinder/batch.hpp>
 #include <libreadfinder/fsdefs.hpp>
 #include <libreadfinder/fsidx.hpp>
-// #include <libreadfinder/seeddata.hpp>
 #include <libreadfinder/defs.hpp>
 
 READFINDER_NS_BEGIN
@@ -82,7 +81,6 @@ private:
         bool exact;
     };
 
-    // typedef std::vector< HashWord, TAlloc > WordTable;
     typedef std::vector< HashWord > WordTable;
     typedef std::vector< uint32_t > WordMap;
 
@@ -168,7 +166,6 @@ private:
 
     typedef std::vector< Hit > Hits;
     typedef HashWord TaskEntry;
-    // typedef std::vector< CSeedData > SeedData;
 
     struct HitFilteringJob;
     struct ReadMarkingJob;
@@ -177,7 +174,6 @@ public:
 
     CFastSeeds( CBatch & bctx, bool seeder_mode = false );
     void Run();
-    // SeedData * GetSeeds() { return seeds_.release(); }
 
 private:
 
@@ -192,7 +188,6 @@ private:
 
     CBatch & bctx_;
     CFastSeedsIndex fsidx_;
-    // std::unique_ptr< SeedData > seeds_;
     WordTable wt_;
     WordMap wmap_ = WordMap( WMAP_SIZE, 0 );
     AnchorTable atbl_ = AnchorTable( ANCHOR_TBL_SIZE );

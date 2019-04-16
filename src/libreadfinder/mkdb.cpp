@@ -81,9 +81,7 @@ private:
                   offsets_os_;
     gzFile data_os_ = nullptr;
     std::string fasta_id_;
-    // std::vector< char, TAlloc > fasta_data_;
     std::vector< char > fasta_data_;
-    // std::vector< uint64_t, TAlloc > data_,
     std::vector< uint64_t> data_,
                            mask_;
     uint64_t offset_ = 0;
