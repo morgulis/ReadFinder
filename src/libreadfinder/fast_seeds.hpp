@@ -78,7 +78,7 @@ private:
     struct ExtHashWord
     {
         HashWord hw;
-        bool exact;
+        // bool exact;
     };
 
     typedef std::vector< HashWord > WordTable;
@@ -95,9 +95,9 @@ private:
             struct
             {
                 uint32_t wanchor : ANCHOR_BITS + LB;
-                uint32_t ins : 1;
-                uint32_t del : 1;
-                bool exact : 1;
+                // uint32_t ins : 1;
+                // uint32_t del : 1;
+                // bool exact : 1;
             } f;
 
             uint32_t w;
@@ -106,16 +106,19 @@ private:
 
     static_assert( sizeof( AnchorListEntry ) == 4, "" );
 
-    static size_t const ANCHOR_LIST_MAX_LEN = 292;
+    // static size_t const ANCHOR_LIST_MAX_LEN = 292;
+    static size_t const ANCHOR_LIST_MAX_LEN = 4;
 
     typedef AnchorListEntry AnchorList[ANCHOR_LIST_MAX_LEN];
 
     struct AnchorTableEntry
     {
         size_t len = 0;
+        /*
         uint8_t n_subst = 0,
                 n_del   = 0,
                 n_ins   = 0;
+        */
         AnchorList data;
     };
 
@@ -132,8 +135,8 @@ private:
         TReadOff readpos;
         uint8_t strand : 1;
         uint8_t mate : 1;
-        bool exact : 1;
-        bool mid : 1;
+        // bool exact : 1;
+        // bool mid : 1;
 
         TSeqOff GetDiag() const { return refpos - readpos; }
 
@@ -192,7 +195,7 @@ private:
     WordMap wmap_ = WordMap( WMAP_SIZE, 0 );
     AnchorTable atbl_ = AnchorTable( ANCHOR_TBL_SIZE );
     BitSet anchor_use_map_;
-    bool seeder_mode_ = false;
+    // bool seeder_mode_ = false;
 };
 
 READFINDER_NS_END

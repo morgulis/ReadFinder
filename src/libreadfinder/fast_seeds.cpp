@@ -49,8 +49,8 @@ CFastSeeds::CFastSeeds( CBatch & bctx, bool seeder_mode )
                       static_cast< CCommonContext & >( 
                           bctx.GetSearchCtx() ) ) ),
               *bctx.GetSearchCtx().refs ),
-      anchor_use_map_( ANCHOR_TBL_SIZE, false ),
-      seeder_mode_( seeder_mode )
+      anchor_use_map_( ANCHOR_TBL_SIZE, false )// ,
+      // seeder_mode_( seeder_mode )
 {
     bctx_.GetSearchCtx().refs->LoadAll();
 }
@@ -254,13 +254,16 @@ class CFastSeeds::HashWordSource
 {
 public:
 
+    /*
     HashWordSource( TWord const * seq_data, TSeqLen len, TSeqOff off,
                     TSeqOff strode = WORD_STRIDE );
+    */
+    HashWordSource( TWord const * seq_data, TSeqLen len, TSeqOff off );
     void operator++();
 
     uint32_t GetAnchor() const { return data_.f.anchor; }
     uint32_t GetWord() const { return data_.f.word; }
-    uint32_t GetSfx() const { return data_.f.sfx; }
+    // uint32_t GetSfx() const { return data_.f.sfx; }
     TSeqOff GetHashOff() const { return off_ + 1 - off_adj_; }
     operator bool() const { return !done_; }
 
@@ -274,7 +277,7 @@ private:
             {
                 uint64_t word   : WORD_BITS;
                 uint64_t anchor : ANCHOR_BITS + LB;
-                uint64_t sfx    : SFX_BITS;
+                // uint64_t sfx    : SFX_BITS;
             } f;
 
             TWord w;
@@ -287,16 +290,18 @@ private:
     TWord const * seq_data_;
     TSeqLen len_;
     TSeqOff off_,
-            off_adj_,
-            stride_;
+            off_adj_;
+            // off_adj_,
+            // stride_;
     bool done_ = true;
 };
 
 //------------------------------------------------------------------------------
 inline CFastSeeds::HashWordSource::HashWordSource(
-        TWord const * seq_data, TSeqLen len, TSeqOff off, TSeqOff stride )
+        TWord const * seq_data, TSeqLen len, TSeqOff off )
+        // TWord const * seq_data, TSeqLen len, TSeqOff off, TSeqOff stride )
     : nw_( 0 ), seq_data_( seq_data ), len_( off + len ),
-      off_( off ), off_adj_( off ), stride_( stride )
+      off_( off ), off_adj_( off )// , stride_( stride )
 {
     if( off_ >= len_ )
     {
@@ -317,8 +322,8 @@ inline CFastSeeds::HashWordSource::HashWordSource(
 //------------------------------------------------------------------------------
 inline void CFastSeeds::HashWordSource::operator++()
 {
-    TSeqOff woff( off_%WL );
-    off_ += stride_;
+    TSeqOff woff( off_++%WL );
+    // off_ += stride_;
     
     if( off_ >= len_ )
     {
@@ -326,9 +331,14 @@ inline void CFastSeeds::HashWordSource::operator++()
         return;
     }
 
+    /*
     woff += stride_;
     data_.w >>= stride_*LB;
     data_.w += (nw_<<((WL - stride_)*LB));
+    */
+    ++woff;
+    data_.w >>= LB;
+    data_.w += (nw_<<((WL - 1)*LB));
 
     if( woff >= WL )
     {
@@ -343,7 +353,8 @@ inline void CFastSeeds::HashWordSource::operator++()
     }
     else
     {
-        nw_ >>= stride_*LB;
+        // nw_ >>= stride_*LB;
+        nw_ >>= LB;
     }
 }
 
@@ -352,12 +363,15 @@ class CFastSeeds::HashMaskSource
 {
 public:
 
+    /*
     HashMaskSource( TWord const * mask_data, TSeqLen len, TSeqOff off,
                     TSeqOff stride = WORD_STRIDE );
+    */
+    HashMaskSource( TWord const * mask_data, TSeqLen len, TSeqOff off );
     void operator++();
 
     uint64_t GetNMer() const { return data_.f.nmer; }
-    uint64_t GetSfx() const { return data_.f.sfx; }
+    // uint64_t GetSfx() const { return data_.f.sfx; }
     operator bool() const { return !done_; }
 
 private:
@@ -370,7 +384,7 @@ private:
             {
                 uint64_t pfx  : LB;
                 uint64_t nmer : NMER_BITS;
-                uint64_t sfx  : SFX_BITS;
+                // uint64_t sfx  : SFX_BITS;
             } f;
 
             TWord w;
@@ -382,16 +396,18 @@ private:
     TWord nw_ = 0;
     TWord const * mask_data_;
     TSeqLen len_;
-    TSeqOff off_ = 0,
-            stride_;
+    TSeqOff off_ = 0;
+    // TSeqOff off_ = 0,
+    //         stride_;
     bool done_ = true;
 };
 
 //------------------------------------------------------------------------------
 inline CFastSeeds::HashMaskSource::HashMaskSource(
-        TWord const * mask_data, TSeqLen len, TSeqOff off, TSeqOff stride )
-    : mask_data_( mask_data ), len_( off + len ), off_( off ),
-      stride_( stride )
+        TWord const * mask_data, TSeqLen len, TSeqOff off )
+        // TWord const * mask_data, TSeqLen len, TSeqOff off, TSeqOff stride )
+    : mask_data_( mask_data ), len_( off + len ), off_( off )// ,
+      // stride_( stride )
 {
     if( off_ >= len )
     {
@@ -412,8 +428,8 @@ inline CFastSeeds::HashMaskSource::HashMaskSource(
 //------------------------------------------------------------------------------
 inline void CFastSeeds::HashMaskSource::operator++()
 {
-    TSeqOff woff( off_%WL );
-    off_ += stride_;
+    TSeqOff woff( off_++%WL );
+    // off_ += stride_;
     
     if( off_ >= len_ )
     {
@@ -421,9 +437,14 @@ inline void CFastSeeds::HashMaskSource::operator++()
         return;
     }
 
+    /*
     woff += stride_;
     data_.w >>= stride_*LB;
     data_.w += (nw_<<((WL - stride_)*LB));
+    */
+    ++woff;
+    data_.w >>= LB;
+    data_.w += (nw_<<((WL - 1)*LB));
 
     if( woff >= WL )
     {
@@ -438,7 +459,8 @@ inline void CFastSeeds::HashMaskSource::operator++()
     }
     else
     {
-        nw_ >>= stride_*LB;
+        // nw_ >>= stride_*LB;
+        nw_ >>= LB;
     }
 }
 
@@ -482,7 +504,7 @@ inline void CFastSeeds::WordCountingJob::operator()()
 {
     auto const & reads( o_.bctx_.GetReads() );
     auto n_reads( reads.GetNReads() );
-    auto stride( o_.seeder_mode_ ? 1 : WORD_STRIDE );
+    // auto stride( o_.seeder_mode_ ? 1 : WORD_STRIDE );
 
     while( true )
     {
@@ -510,10 +532,10 @@ inline void CFastSeeds::WordCountingJob::operator()()
             {
                 auto const & sd( reads.GetSeqData( start_read, eFIRST, s ) ),
                            & md( reads.GetMaskData( start_read, eFIRST, s ) );
-                HashWordSource hws(
-                        sd.GetBuf(), sd.size(), sd.GetStart(), stride );
-                HashMaskSource hms(
-                        md.GetBuf(), md.size(), md.GetStart(), stride );
+                HashWordSource hws( sd.GetBuf(), sd.size(), sd.GetStart() );
+                        // sd.GetBuf(), sd.size(), sd.GetStart(), stride );
+                HashMaskSource hms( md.GetBuf(), md.size(), md.GetStart() );
+                        // md.GetBuf(), md.size(), md.GetStart(), stride );
 
                 while( hws )
                 {
@@ -538,9 +560,11 @@ inline void CFastSeeds::WordCountingJob::operator()()
                                & md( reads.GetMaskData( 
                                         start_read, eSECOND, s ) );
                     HashWordSource hws( 
-                            sd.GetBuf(), sd.size(), sd.GetStart(), stride );
+                            sd.GetBuf(), sd.size(), sd.GetStart() );
+                            // sd.GetBuf(), sd.size(), sd.GetStart(), stride );
                     HashMaskSource hms( 
-                            md.GetBuf(), md.size(), md.GetStart(), stride );
+                            md.GetBuf(), md.size(), md.GetStart() );
+                            // md.GetBuf(), md.size(), md.GetStart(), stride );
 
                     while( hws )
                     {
@@ -595,7 +619,7 @@ inline void CFastSeeds::WordTableGeneratorJob::operator()()
     auto & wmap( wcj_data_.wmap );
     auto & wt( o_.wt_ );
     ph_.SetTotal( wcj_data_.tasks.size() );
-    auto stride( o_.seeder_mode_ ? 1 : WORD_STRIDE );
+    // auto stride( o_.seeder_mode_ ? 1 : WORD_STRIDE );
 
     for( auto task_idx : wcj_data_.tasks )
     {
@@ -616,10 +640,10 @@ inline void CFastSeeds::WordTableGeneratorJob::operator()()
             {
                 auto const & sd( reads.GetSeqData( start_read, eFIRST, s ) ),
                            & md( reads.GetMaskData( start_read, eFIRST, s ) );
-                HashWordSource hws(
-                        sd.GetBuf(), sd.size(), sd.GetStart(), stride );
-                HashMaskSource hms(
-                        md.GetBuf(), md.size(), md.GetStart(), stride );
+                HashWordSource hws( sd.GetBuf(), sd.size(), sd.GetStart() );
+                        // sd.GetBuf(), sd.size(), sd.GetStart(), stride );
+                HashMaskSource hms( md.GetBuf(), md.size(), md.GetStart() );
+                        // md.GetBuf(), md.size(), md.GetStart(), stride );
 
                 while( hws )
                 {
@@ -629,7 +653,7 @@ inline void CFastSeeds::WordTableGeneratorJob::operator()()
                     {
                         auto & w( wt[wmap[hws.GetAnchor()]++] );
                         w.wd.w.word = hws.GetWord();
-                        w.wd.w.sfx = hws.GetSfx();
+                        // w.wd.w.sfx = hws.GetSfx();
                         w.readid = start_read;
                         w.hashoff = hws.GetHashOff();
                         w.strand = s;
@@ -650,9 +674,11 @@ inline void CFastSeeds::WordTableGeneratorJob::operator()()
                                & md( reads.GetMaskData( 
                                         start_read, eSECOND, s ) );
                     HashWordSource hws(
-                            sd.GetBuf(), sd.size(), sd.GetStart(), stride );
+                            sd.GetBuf(), sd.size(), sd.GetStart() );
+                            // sd.GetBuf(), sd.size(), sd.GetStart(), stride );
                     HashMaskSource hms(
-                            md.GetBuf(), md.size(), md.GetStart(), stride );
+                            md.GetBuf(), md.size(), md.GetStart() );
+                            // md.GetBuf(), md.size(), md.GetStart(), stride );
 
                     while( hws )
                     {
@@ -662,7 +688,7 @@ inline void CFastSeeds::WordTableGeneratorJob::operator()()
                         {
                             auto & w( wt[wmap[hws.GetAnchor()]++] );
                             w.wd.w.word = hws.GetWord();
-                            w.wd.w.sfx = hws.GetSfx();
+                            // w.wd.w.sfx = hws.GetSfx();
                             w.readid = start_read;
                             w.hashoff = hws.GetHashOff();
                             w.strand = s;
@@ -769,20 +795,21 @@ struct CFastSeeds::SeedSearchJob
                    CProgress::ProgressHandle & ph );
     void operator()();
     void PrepareIndex( uint32_t anchor, bool good = true );
-    void MatchIns( uint32_t anchor );
+    // void MatchIns( uint32_t anchor );
     void MatchSubst( uint32_t anchor );
-    void MatchDel( uint32_t anchor );
+    // void MatchDel( uint32_t anchor );
     void MatchScan( uint32_t anchor );
-    void MatchPfx_1( uint32_t anchor );
-    void MatchPfx_2( uint32_t anchor );
-    void MatchPfx_2I( uint32_t anchor );
-    void MatchPfx_2E( uint32_t anchor );
-    void MatchPfx_2D( uint32_t anchor );
+    // void MatchPfx_1( uint32_t anchor );
+    // void MatchPfx_2( uint32_t anchor );
+    // void MatchPfx_2I( uint32_t anchor );
+    // void MatchPfx_2E( uint32_t anchor );
+    // void MatchPfx_2D( uint32_t anchor );
 
     void SaveHit( IndexEntry const & iw,
-                  HashWord const & hw,
-                  bool exact, int ins, int del,
-                  TReadOff posadj = 0 );
+                  HashWord const & hw );
+                  // HashWord const & hw,
+                  // bool exact, int ins, int del,
+                  // TReadOff posadj = 0 );
 
     static uint32_t MkSI( uint32_t w )
     {
@@ -934,22 +961,27 @@ inline void CFastSeeds::SeedSearchJob::PrepareIndex(
 
 //------------------------------------------------------------------------------
 inline void CFastSeeds::SeedSearchJob::SaveHit( 
-        IndexEntry const & iw, HashWord const & hw, 
-        bool exact, int ins, int del, TReadOff posadj )
+        IndexEntry const & iw, HashWord const & hw )
+        // IndexEntry const & iw, HashWord const & hw, 
+        // bool exact, int ins, int del, TReadOff posadj )
 {
     ++jd_.hits;
-    TReadOff readoff( hw.hashoff + posadj + del - ins );
-    Hit h { iw.pos + posadj, hw.readid, readoff,
-            (uint8_t)(hw.strand - 1), (uint8_t)(hw.mate - 1), exact };
+    TReadOff readoff( hw.hashoff /* + posadj + del - ins */ );
+    Hit h { iw.pos /* + posadj */, hw.readid, readoff,
+            (uint8_t)(hw.strand - 1), (uint8_t)(hw.mate - 1) };
+            // (uint8_t)(hw.strand - 1), (uint8_t)(hw.mate - 1), exact };
     
+    /*
     if( o_.seeder_mode_ )
     {
         h.mid = (posadj != 0);
     }
+    */
 
     jd_.results.push_back( h );
 }
 
+/*
 //------------------------------------------------------------------------------
 inline void CFastSeeds::SeedSearchJob::MatchIns( uint32_t anchor )
 {
@@ -1002,27 +1034,31 @@ inline void CFastSeeds::SeedSearchJob::MatchIns( uint32_t anchor )
         }
     }
 }
+*/
 
 //------------------------------------------------------------------------------
 inline void CFastSeeds::SeedSearchJob::MatchSubst( uint32_t anchor )
 {
-    auto & ctx( o_.bctx_.GetSearchCtx() );
+    // auto & ctx( o_.bctx_.GetSearchCtx() );
     auto const & wt( o_.wt_ );
     auto const & wmap( o_.wmap_ );
     auto const & al( o_.atbl_[anchor] );
     auto const & d( al.data );
-    bool es( ctx.exact_seeds );
+    // bool es( ctx.exact_seeds );
 
     auto ib( o_.fsidx_.cbegin( anchor ) );
 
-    for( size_t i( al.n_ins ), ie( al.n_ins + al.n_subst ); i < ie; ++i )
+    // for( size_t i( al.n_ins ), ie( al.n_ins + al.n_subst ); i < ie; ++i )
+    for( size_t i( 0 ); i < al.len; ++i )
     {
+        /*
         bool exact( d[i].f.exact );
 
         if( es && !exact )
         {
             continue;
         }
+        */
 
         auto wa( d[i].f.wanchor );
 
@@ -1048,6 +1084,7 @@ inline void CFastSeeds::SeedSearchJob::MatchSubst( uint32_t anchor )
 
                 for( ; ii != iie && ii->wd.w.word == ww; ++ii )
                 {
+                    /*
                     if( !o_.seeder_mode_ )
                     {
                         if( (!exact && ii->wd.w.repeat) || ii->wd.w.erepeat )
@@ -1055,14 +1092,16 @@ inline void CFastSeeds::SeedSearchJob::MatchSubst( uint32_t anchor )
                             break;
                         }
                     }
+                    */
 
-                    SaveHit( *ii, *wtb, exact, 0, 0 );
+                    SaveHit( *ii, *wtb/* , exact, 0, 0 */);
                 }
             }
         }
     }
 }
 
+/*
 //------------------------------------------------------------------------------
 inline void CFastSeeds::SeedSearchJob::MatchDel( uint32_t anchor )
 {
@@ -1119,29 +1158,32 @@ inline void CFastSeeds::SeedSearchJob::MatchDel( uint32_t anchor )
         }
     }
 }
+*/
 
 //------------------------------------------------------------------------------
 inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
 {
-    static auto const MASK = (LMASK<<LB) + LMASK;
+    // static auto const MASK = (LMASK<<LB) + LMASK;
 
-    auto & ctx( o_.bctx_.GetSearchCtx() );
+    // auto & ctx( o_.bctx_.GetSearchCtx() );
     std::vector< ExtHashWord > & words( jd_.ewords );
     words.clear();
     auto const & wt( o_.wt_ );
     auto const & wmap( o_.wmap_ );
     auto const & al( o_.atbl_[anchor] );
     auto const & d( al.data );
-    bool es( ctx.exact_seeds );
+    // bool es( ctx.exact_seeds );
 
     for( size_t i( 0 ); i < al.len; ++i )
     {
+        /*
         bool exact( d[i].f.exact );
 
         if( es && !exact )
         {
             continue;
         }
+        */
 
         auto wa( d[i].f.wanchor );
 
@@ -1149,8 +1191,9 @@ inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
                                        wte( wt.begin() + wmap[wa + 1] );
              wtb != wte; ++wtb )
         {
-            ExtHashWord hs { *wtb, exact };
+            ExtHashWord hs { *wtb/* , exact */};
 
+            /*
             if( d[i].f.ins != 0 )
             {
                 --hs.hw.hashoff;
@@ -1164,6 +1207,7 @@ inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
                 hs.hw.wd.w.word = w;
             }
             else
+            */
             {
                 auto w( hs.hw.wd.w.word );
                 w >>= LB;
@@ -1206,6 +1250,7 @@ inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
             auto wwe( wb );
             for( ; wwe != we && wb->hw.wd.w.word == wwe->hw.wd.w.word; ++wwe );
 
+            /*
             if( !o_.seeder_mode_ && ib->wd.w.erepeat )
             {
                 ib = iie;
@@ -1214,15 +1259,19 @@ inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
             }
 
             bool repeat( !o_.seeder_mode_ && ib->wd.w.repeat );
+            */
 
             for( ; ib != iie; ++ib )
             {
                 for( auto wc( wb ); wc != wwe; ++wc )
                 {
+                    SaveHit( *ib, wc->hw );
+                    /*
                     if( wc->exact || !repeat )
                     {
                         SaveHit( *ib, wc->hw, wc->exact, 0, 0 );
                     }
+                    */
                 }
             }
 
@@ -1231,6 +1280,7 @@ inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
     }
 }
 
+/*
 //------------------------------------------------------------------------------
 inline void CFastSeeds::SeedSearchJob::MatchPfx_2I( uint32_t anchor )
 {
@@ -1591,11 +1641,12 @@ inline void CFastSeeds::SeedSearchJob::MatchPfx_1( uint32_t anchor )
         }
     }
 }
+*/
 
 //------------------------------------------------------------------------------
 inline void CFastSeeds::SeedSearchJob::operator()()
 {
-    auto & ctx( o_.bctx_.GetSearchCtx() );
+    // auto & ctx( o_.bctx_.GetSearchCtx() );
     auto const & anchor_use_map( o_.anchor_use_map_ );
 
     while( true )
@@ -1617,9 +1668,9 @@ inline void CFastSeeds::SeedSearchJob::operator()()
             {
                 ++jd_.good_anchors;
                 PrepareIndex( task_idx );
-                MatchIns( task_idx );
+                // MatchIns( task_idx );
                 MatchSubst( task_idx );
-                MatchDel( task_idx );
+                // MatchDel( task_idx );
             }
             else
             {
@@ -1627,11 +1678,13 @@ inline void CFastSeeds::SeedSearchJob::operator()()
                 MatchScan( task_idx );
             }
 
+            /*
             if( !ctx.exact_seeds )
             {
                 MatchPfx_1( task_idx );
                 MatchPfx_2( task_idx );
             }
+            */
         }
 
         ph_.Increment();
@@ -1710,7 +1763,8 @@ inline float CFastSeeds::ReadMarkingJob::ReadIsCovered(
 
         auto const & h( b->second );
 
-        for( auto pos( h.mid ? h.readpos - WORD_BASES : h.readpos ), i( 0L );
+        // for( auto pos( h.mid ? h.readpos - WORD_BASES : h.readpos ), i( 0L );
+        for( ssize_t pos( h.readpos ), i( 0L );
              i < NMER_BASES && (size_t)pos < cover_.size(); ++pos, ++i )
         {
             cover_.set( pos );
@@ -2253,22 +2307,23 @@ void CFastSeeds::CreateWordTable()
 //------------------------------------------------------------------------------
 inline void CFastSeeds::UpdateAnchorLists( uint32_t wanchor )
 {
-    static uint32_t const LMASK = (1U<<LB) - 1;
+    // static uint32_t const LMASK = (1U<<LB) - 1;
 
     AnchorListEntry ale;
     ale.f.wanchor = wanchor;
 
     // exact
     //
-    {
-        ale.f.ins = ale.f.del = 0;
-        ale.f.exact = true;
+    // {
+        // ale.f.ins = ale.f.del = 0;
+        // ale.f.exact = true;
         uint32_t ww( wanchor>>LB );
         assert( atbl_[ww].len < ANCHOR_LIST_MAX_LEN );
         atbl_[ww].data[atbl_[ww].len++] = ale;
-        ++atbl_[ww].n_subst;
-    }
+        // ++atbl_[ww].n_subst;
+    // }
 
+    /*
     // substitutions
     //
     {
@@ -2347,13 +2402,14 @@ inline void CFastSeeds::UpdateAnchorLists( uint32_t wanchor )
             }
         }
     }
+    */
 }
 
 //------------------------------------------------------------------------------
 inline void CFastSeeds::UpdateAnchorUseMap( uint32_t wa )
 {
-    static uint32_t const LMASK = (1U<<LB) - 1;
-    auto & ctx( bctx_.GetSearchCtx() );
+    // static uint32_t const LMASK = (1U<<LB) - 1;
+    // auto & ctx( bctx_.GetSearchCtx() );
 
     // exact
     //
@@ -2362,6 +2418,7 @@ inline void CFastSeeds::UpdateAnchorUseMap( uint32_t wa )
         anchor_use_map_[a] = true;
     }
 
+    /*
     if( !ctx.exact_seeds )
     {
         // substitutions
@@ -2431,6 +2488,7 @@ inline void CFastSeeds::UpdateAnchorUseMap( uint32_t wa )
             }
         }
     }
+    */
 }
 
 //------------------------------------------------------------------------------
@@ -2444,6 +2502,7 @@ inline void CFastSeeds::CreateAnchorTable()
         UpdateAnchorLists( wa );
     }
 
+    /*
     for( uint32_t a( 0 ); a < ANCHOR_TBL_SIZE; ++a )
     {
         auto & d( atbl_[a].data );
@@ -2470,6 +2529,7 @@ inline void CFastSeeds::CreateAnchorTable()
             }
         }
     }
+    */
 
     M_INFO( ctx.logger_, "generated anchor table" );
 }

@@ -76,7 +76,7 @@ public:
 
     uint32_t GetAnchor() const { return data_.f.anchor; }
     uint32_t GetWord() const { return data_.f.word; }
-    uint32_t GetSfx() const { return data_.f.sfx; }
+    // uint32_t GetSfx() const { return data_.f.sfx; }
     uint32_t GetPos() const { return pos_; }
     operator bool() const { return !done_; }
 
@@ -90,7 +90,7 @@ private:
             {
                 uint64_t word   : WORD_BITS;
                 uint64_t anchor : ANCHOR_BITS;
-                uint64_t sfx    : SFX_BITS;
+                // uint64_t sfx    : SFX_BITS;
             } f;
 
             TWord w;
@@ -168,7 +168,7 @@ public:
     void operator++();
 
     uint64_t GetNMer() const { return data_.f.nmer; }
-    uint64_t GetSfx() const { return data_.f.sfx; }
+    // uint64_t GetSfx() const { return data_.f.sfx; }
 
 private:
 
@@ -179,7 +179,7 @@ private:
             struct
             {
                 uint64_t nmer : NMER_BITS;
-                uint64_t sfx  : SFX_BITS;
+                // uint64_t sfx  : SFX_BITS;
             } f;
 
             TWord w;
@@ -391,7 +391,7 @@ inline void CFastSeedsIndex::PopulateIndexJob::operator()()
                 auto anchor( ies.GetAnchor() );
                 IndexEntry ie;
                 ie.wd.w.word = ies.GetWord();
-                ie.wd.w.sfx = ies.GetSfx();
+                // ie.wd.w.sfx = ies.GetSfx();
                 ie.pos = ies.GetPos();
                 idx[chunk_map[anchor]].SetData( idxmap[anchor]++, ie );
             }
