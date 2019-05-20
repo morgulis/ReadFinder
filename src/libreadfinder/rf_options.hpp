@@ -153,7 +153,6 @@ struct CSearchOptions : public CommonOptions
     ///< Seeder read coverage threshold.
     float coverage_th = 0.5f;
 
-    // bool exact_seeds = true; ///< Do not allow errors in seeds.
     bool per_mate_marks = false; ///< Report individual mates in seeder.
 
     friend std::ostream & operator<<(
@@ -167,8 +166,6 @@ struct CSearchOptions : public CommonOptions
                   <<    "   mate input: " << x.input_2 << '\n'
                   <<    "   output: " << x.output << '\n'
                   <<    "   input format: " << x.input_format << std::endl;
-                  // <<    "   input format: " << x.input_format << '\n'
-                  // <<    "   exact seeds only: " << x.exact_seeds << std::endl;
     }
 };
 
