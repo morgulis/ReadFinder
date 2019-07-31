@@ -258,7 +258,8 @@ public:
 
     uint32_t GetAnchor() const { return data_.f.anchor; }
     uint32_t GetWord() const { return data_.f.word; }
-    TSeqOff GetHashOff() const { return off_ + 1 - off_adj_; }
+    // TSeqOff GetHashOff() const { return off_ + 1 - off_adj_; }
+    TSeqOff GetHashOff() const { return off_ - off_adj_; }
     operator bool() const { return !done_; }
 
 private:
@@ -270,7 +271,8 @@ private:
             struct
             {
                 uint64_t word   : WORD_BITS;
-                uint64_t anchor : ANCHOR_BITS + LB;
+                // uint64_t anchor : ANCHOR_BITS + LB;
+                uint64_t anchor : ANCHOR_BITS;
             } f;
 
             TWord w;
@@ -360,7 +362,7 @@ private:
         {
             struct
             {
-                uint64_t pfx  : LB;
+                // uint64_t pfx  : LB;
                 uint64_t nmer : NMER_BITS;
             } f;
 
@@ -760,11 +762,13 @@ struct CFastSeeds::SeedSearchJob
         return (w&SIMASK)>>SISHIFT;
     }
 
+    /*
     static bool CheckIns( uint32_t iw, uint32_t ww, size_t & n_init_matches );
     static bool CheckDel( uint32_t iw, uint32_t ww, size_t & n_init_matches );
     static bool CheckSubst(
             uint32_t iw, uint32_t ww, size_t & n_init_matches );
     static int Check1Err( uint32_t w1, uint32_t w2 );
+    */
 
     CFastSeeds & o_;
     IndexScanner & scanner_;
@@ -776,6 +780,7 @@ struct CFastSeeds::SeedSearchJob
     CProgress::ProgressHandle & ph_;
 };
 
+/*
 //------------------------------------------------------------------------------
 inline bool CFastSeeds::SeedSearchJob::CheckIns(
         uint32_t iw, uint32_t ww, size_t & n_init_matches )
@@ -846,6 +851,7 @@ inline int CFastSeeds::SeedSearchJob::Check1Err( uint32_t w1, uint32_t w2 )
 
     return 3;
 }
+*/
 
 //------------------------------------------------------------------------------
 inline CFastSeeds::SeedSearchJob::SeedSearchJob( 
@@ -919,11 +925,12 @@ inline void CFastSeeds::SeedSearchJob::MatchSubst( uint32_t anchor )
 {
     auto const & wt( o_.wt_ );
     auto const & wmap( o_.wmap_ );
-    auto const & al( o_.atbl_[anchor] );
-    auto const & d( al.data );
+    // auto const & al( o_.atbl_[anchor] );
+    // auto const & d( al.data );
 
     auto ib( o_.fsidx_.cbegin( anchor ) );
 
+    /*
     for( size_t i( 0 ); i < al.len; ++i )
     {
         auto wa( d[i].f.wanchor );
@@ -931,10 +938,16 @@ inline void CFastSeeds::SeedSearchJob::MatchSubst( uint32_t anchor )
         for( WordTable::const_iterator wtb( wt.begin() + wmap[wa] ),
                                        wte( wt.begin() + wmap[wa + 1] );
              wtb != wte; ++wtb )
+    */
+        for( WordTable::const_iterator wtb( wt.begin() + wmap[anchor] ),
+                                       wte( wt.begin() + wmap[anchor + 1] );
+             wtb != wte; ++wtb )
         {
             auto ww( wtb->wd.w.word );
+            /*
             ww >>= LB;
             ww += ((wa&LMASK)<<(WORD_BITS - LB));
+            */
             auto w( ww&PWMASK );
 
             if( GetBit( pa_[w/PWBITS], w%PWBITS ) == 0 )
@@ -954,7 +967,7 @@ inline void CFastSeeds::SeedSearchJob::MatchSubst( uint32_t anchor )
                 }
             }
         }
-    }
+    // }
 }
 
 //------------------------------------------------------------------------------
@@ -964,9 +977,10 @@ inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
     words.clear();
     auto const & wt( o_.wt_ );
     auto const & wmap( o_.wmap_ );
-    auto const & al( o_.atbl_[anchor] );
-    auto const & d( al.data );
+    // auto const & al( o_.atbl_[anchor] );
+    // auto const & d( al.data );
 
+    /*
     for( size_t i( 0 ); i < al.len; ++i )
     {
         auto wa( d[i].f.wanchor );
@@ -974,15 +988,21 @@ inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
         for( WordTable::const_iterator wtb( wt.begin() + wmap[wa] ),
                                        wte( wt.begin() + wmap[wa + 1] );
              wtb != wte; ++wtb )
+    */
+        for( WordTable::const_iterator wtb( wt.begin() + wmap[anchor] ),
+                                       wte( wt.begin() + wmap[anchor + 1] );
+             wtb != wte; ++wtb )
         {
             ExtHashWord hs { *wtb };
 
+            /*
             {
                 auto w( hs.hw.wd.w.word );
                 w >>= LB;
                 w += ((wa&LMASK)<<(WORD_BITS - LB));
                 hs.hw.wd.w.word = w;
             }
+            */
 
             auto w( hs.hw.wd.w.word&PWMASK );
 
@@ -996,7 +1016,7 @@ inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
                 words.push_back( hs );
             }
         }
-    }
+    // }
 
     std::sort( words.begin(), words.end(),
                []( ExtHashWord const & x, ExtHashWord const & y )
@@ -1680,6 +1700,7 @@ void CFastSeeds::CreateWordTable()
 #endif
 }
 
+/*
 //------------------------------------------------------------------------------
 inline void CFastSeeds::UpdateAnchorLists( uint32_t wanchor )
 {
@@ -1690,6 +1711,7 @@ inline void CFastSeeds::UpdateAnchorLists( uint32_t wanchor )
     assert( atbl_[ww].len < ANCHOR_LIST_MAX_LEN );
     atbl_[ww].data[atbl_[ww].len++] = ale;
 }
+*/
 
 //------------------------------------------------------------------------------
 inline void CFastSeeds::UpdateAnchorUseMap( uint32_t wa )
@@ -1698,6 +1720,7 @@ inline void CFastSeeds::UpdateAnchorUseMap( uint32_t wa )
     anchor_use_map_[a] = true;
 }
 
+/*
 //------------------------------------------------------------------------------
 inline void CFastSeeds::CreateAnchorTable()
 {
@@ -1711,11 +1734,12 @@ inline void CFastSeeds::CreateAnchorTable()
 
     M_INFO( ctx.logger_, "generated anchor table" );
 }
+*/
 
 //------------------------------------------------------------------------------
 void CFastSeeds::Run()
 {
-    CreateAnchorTable();
+    // CreateAnchorTable();
     CreateWordTable();
 
     auto & ctx( bctx_.GetSearchCtx() );

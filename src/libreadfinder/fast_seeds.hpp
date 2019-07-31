@@ -46,8 +46,9 @@ class CFastSeeds : public CFastSeedsDefs
 {
 private:
 
-    static size_t const WMAP_SIZE = 1ULL + (1ULL<<(ANCHOR_BITS + LB));
+    // static size_t const WMAP_SIZE = 1ULL + (1ULL<<(ANCHOR_BITS + LB));
     static size_t const ANCHOR_TBL_SIZE = (1ULL<<ANCHOR_BITS);
+    static size_t const WMAP_SIZE = 1ULL + (1ULL<<ANCHOR_BITS);
 
     //--------------------------------------------------------------------------
     struct WordCountingJobData;
@@ -56,7 +57,7 @@ private:
     //--------------------------------------------------------------------------
     typedef boost::dynamic_bitset< uint64_t > BitSet;
 
-    static TSeqLen const WORD_STRIDE = 3;
+    // static TSeqLen const WORD_STRIDE = 3;
 
     //--------------------------------------------------------------------------
     struct WordTableGeneratorJob;
@@ -81,11 +82,12 @@ private:
     };
 
     typedef std::vector< HashWord > WordTable;
-    typedef std::vector< uint32_t > WordMap;
+    // typedef std::vector< uint32_t > WordMap;
 
     class HashWordSource;
     class HashMaskSource;
 
+    /*
     //--------------------------------------------------------------------------
     struct AnchorListEntry
     {
@@ -113,6 +115,7 @@ private:
     };
 
     typedef std::vector< AnchorTableEntry > AnchorTable;
+    */
 
     struct SeedSearchJobData;
     struct SeedSearchJob;
@@ -168,8 +171,8 @@ public:
 
 private:
 
-    void CreateAnchorTable();
-    void UpdateAnchorLists( uint32_t wanchor );
+    // void CreateAnchorTable();
+    // void UpdateAnchorLists( uint32_t wanchor );
     void UpdateAnchorUseMap( uint32_t wa );
     void CreateWordTable();
     void ComputeSeeds();
@@ -181,7 +184,7 @@ private:
     CFastSeedsIndex fsidx_;
     WordTable wt_;
     WordMap wmap_ = WordMap( WMAP_SIZE, 0 );
-    AnchorTable atbl_ = AnchorTable( ANCHOR_TBL_SIZE );
+    // AnchorTable atbl_ = AnchorTable( ANCHOR_TBL_SIZE );
     BitSet anchor_use_map_;
 };
 
