@@ -46,8 +46,8 @@ class CFastSeeds : public CFastSeedsDefs
 {
 private:
 
-    static size_t const WMAP_SIZE = 1ULL + (1ULL<<(ANCHOR_BITS + LB));
     static size_t const ANCHOR_TBL_SIZE = (1ULL<<ANCHOR_BITS);
+    static size_t const WMAP_SIZE = 1ULL + (1ULL<<ANCHOR_BITS);
 
     //--------------------------------------------------------------------------
     struct WordCountingJobData;
@@ -55,8 +55,6 @@ private:
 
     //--------------------------------------------------------------------------
     typedef boost::dynamic_bitset< uint64_t > BitSet;
-
-    static TSeqLen const WORD_STRIDE = 3;
 
     //--------------------------------------------------------------------------
     struct WordTableGeneratorJob;
@@ -69,57 +67,28 @@ private:
         TReadOff hashoff;
         EStrand strand;
         EMate mate;
-    };
 
-    friend std::ostream & operator<<( std::ostream & os, HashWord const & hw );
+        friend std::ostream & operator<<(
+                std::ostream & os, HashWord const & hw )
+        {
+            return os << "{ wd: " << hw.wd << "; read: " << hw.readid
+                      << "; hoff: " << hw.hashoff
+                      << "; strand: " << (int)hw.strand
+                      << "; mate: " << (int)hw.mate << " }";
+        }
+    };
 
     static_assert( sizeof( HashWord ) == 12, "" );
 
     struct ExtHashWord
     {
         HashWord hw;
-        bool exact;
     };
 
     typedef std::vector< HashWord > WordTable;
-    typedef std::vector< uint32_t > WordMap;
 
     class HashWordSource;
     class HashMaskSource;
-
-    //--------------------------------------------------------------------------
-    struct AnchorListEntry
-    {
-        union
-        {
-            struct
-            {
-                uint32_t wanchor : ANCHOR_BITS + LB;
-                uint32_t ins : 1;
-                uint32_t del : 1;
-                bool exact : 1;
-            } f;
-
-            uint32_t w;
-        };
-    };
-
-    static_assert( sizeof( AnchorListEntry ) == 4, "" );
-
-    static size_t const ANCHOR_LIST_MAX_LEN = 292;
-
-    typedef AnchorListEntry AnchorList[ANCHOR_LIST_MAX_LEN];
-
-    struct AnchorTableEntry
-    {
-        size_t len = 0;
-        uint8_t n_subst = 0,
-                n_del   = 0,
-                n_ins   = 0;
-        AnchorList data;
-    };
-
-    typedef std::vector< AnchorTableEntry > AnchorTable;
 
     struct SeedSearchJobData;
     struct SeedSearchJob;
@@ -132,8 +101,6 @@ private:
         TReadOff readpos;
         uint8_t strand : 1;
         uint8_t mate : 1;
-        bool exact : 1;
-        bool mid : 1;
 
         TSeqOff GetDiag() const { return refpos - readpos; }
 
@@ -177,8 +144,6 @@ public:
 
 private:
 
-    void CreateAnchorTable();
-    void UpdateAnchorLists( uint32_t wanchor );
     void UpdateAnchorUseMap( uint32_t wa );
     void CreateWordTable();
     void ComputeSeeds();
@@ -190,9 +155,7 @@ private:
     CFastSeedsIndex fsidx_;
     WordTable wt_;
     WordMap wmap_ = WordMap( WMAP_SIZE, 0 );
-    AnchorTable atbl_ = AnchorTable( ANCHOR_TBL_SIZE );
     BitSet anchor_use_map_;
-    bool seeder_mode_ = false;
 };
 
 READFINDER_NS_END

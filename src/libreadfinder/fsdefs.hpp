@@ -44,30 +44,35 @@ struct CFastSeedsDefs
     static ssize_t const ANCHOR_BASES = 9;
     static ssize_t const HALF_WORD_BASES = 6;
     static ssize_t const WORD_BASES = HALF_WORD_BASES*2;
-    static ssize_t const SFX_BASES  = 3;
     static ssize_t const NMER_BASES = ANCHOR_BASES + WORD_BASES;
-    static ssize_t const EXT_NMER_BASES = NMER_BASES + SFX_BASES;
     static ssize_t const MIN_INEXACT_BASES = 10;
 
 protected:
 
     static ssize_t const ANCHOR_BITS  = LB*ANCHOR_BASES;
     static ssize_t const WORD_BITS = LB*WORD_BASES;
-    static ssize_t const SFX_BITS  = LB*SFX_BASES;
     static ssize_t const NMER_BITS = LB*NMER_BASES;
-    static ssize_t const EXT_NMER_BITS = LB*EXT_NMER_BASES;
 
     union WordData
     {
         struct
         {
             uint32_t word     : WORD_BITS;
-            uint32_t sfx      : SFX_BITS;
             bool erepeat      : 1;
             bool repeat       : 1;
         } w;
 
         uint32_t data;
+
+        friend std::ostream & operator<<(
+                std::ostream & os, WordData const & wd )
+        {
+            return os << std::hex
+                      << "{ w: " << wd.w.word
+                      << "; erep: " << wd.w.erepeat
+                      << "; rep: " << wd.w.repeat
+                      << " }" << std::dec;
+        }
     };
 };
 
