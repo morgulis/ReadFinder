@@ -63,6 +63,16 @@ protected:
         } w;
 
         uint32_t data;
+
+        friend std::ostream & operator<<(
+                std::ostream & os, WordData const & wd )
+        {
+            return os << std::hex
+                      << "{ w: " << wd.w.word
+                      << "; erep: " << wd.w.erepeat
+                      << "; rep: " << wd.w.repeat
+                      << " }" << std::dec;
+        }
     };
 };
 

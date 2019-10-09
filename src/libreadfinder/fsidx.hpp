@@ -46,6 +46,12 @@ public:
     {
         WordData wd;
         uint32_t pos;
+
+        friend std::ostream & operator<<(
+                std::ostream & os, IndexEntry const & ie )
+        {
+            return os << "{ wd: " << ie.wd << "; pos: " << ie.pos << " }";
+        }
     };
 
     static_assert( sizeof( CFastSeedsIndex::IndexEntry ) == 8, "" );

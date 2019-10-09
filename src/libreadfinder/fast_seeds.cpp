@@ -258,7 +258,6 @@ public:
 
     uint32_t GetAnchor() const { return data_.f.anchor; }
     uint32_t GetWord() const { return data_.f.word; }
-    // TSeqOff GetHashOff() const { return off_ + 1 - off_adj_; }
     TSeqOff GetHashOff() const { return off_ - off_adj_; }
     operator bool() const { return !done_; }
 
@@ -271,7 +270,6 @@ private:
             struct
             {
                 uint64_t word   : WORD_BITS;
-                // uint64_t anchor : ANCHOR_BITS + LB;
                 uint64_t anchor : ANCHOR_BITS;
             } f;
 
@@ -362,7 +360,6 @@ private:
         {
             struct
             {
-                // uint64_t pfx  : LB;
                 uint64_t nmer : NMER_BITS;
             } f;
 
@@ -506,7 +503,7 @@ inline void CFastSeeds::WordCountingJob::operator()()
                 {
                     assert( hms );
 
-                    if( GetNSet( hms.GetNMer() ) <= LB )
+                    if( GetNSet( hms.GetNMer() ) == 0 )
                     {
                         ++wcj_data_.wmap[hws.GetAnchor()];
                     }
@@ -533,7 +530,7 @@ inline void CFastSeeds::WordCountingJob::operator()()
                     {
                         assert( hms );
 
-                        if( GetNSet( hms.GetNMer() ) <= LB )
+                        if( GetNSet( hms.GetNMer() ) == 0 )
                         {
                             ++wcj_data_.wmap[hws.GetAnchor()];
                         }
@@ -609,7 +606,7 @@ inline void CFastSeeds::WordTableGeneratorJob::operator()()
                 {
                     assert( hms );
 
-                    if( GetNSet( hms.GetNMer() ) <= LB )
+                    if( GetNSet( hms.GetNMer() ) == 0 )
                     {
                         auto & w( wt[wmap[hws.GetAnchor()]++] );
                         w.wd.w.word = hws.GetWord();
@@ -641,7 +638,7 @@ inline void CFastSeeds::WordTableGeneratorJob::operator()()
                     {
                         assert( hms );
 
-                        if( GetNSet( hms.GetNMer() ) <= LB )
+                        if( GetNSet( hms.GetNMer() ) == 0 )
                         {
                             auto & w( wt[wmap[hws.GetAnchor()]++] );
                             w.wd.w.word = hws.GetWord();
@@ -762,14 +759,6 @@ struct CFastSeeds::SeedSearchJob
         return (w&SIMASK)>>SISHIFT;
     }
 
-    /*
-    static bool CheckIns( uint32_t iw, uint32_t ww, size_t & n_init_matches );
-    static bool CheckDel( uint32_t iw, uint32_t ww, size_t & n_init_matches );
-    static bool CheckSubst(
-            uint32_t iw, uint32_t ww, size_t & n_init_matches );
-    static int Check1Err( uint32_t w1, uint32_t w2 );
-    */
-
     CFastSeeds & o_;
     IndexScanner & scanner_;
     TaskIdx & task_idx_;
@@ -779,79 +768,6 @@ struct CFastSeeds::SeedSearchJob
     SubIndex sidx_ = SubIndex( SUBINDEX_SIZE + 1 );
     CProgress::ProgressHandle & ph_;
 };
-
-/*
-//------------------------------------------------------------------------------
-inline bool CFastSeeds::SeedSearchJob::CheckIns(
-        uint32_t iw, uint32_t ww, size_t & n_init_matches )
-{
-    uint32_t xw( iw^ww );
-    n_init_matches = (GetNFirstClear( xw )>>1);
-    size_t nc( n_init_matches<<1 );
-    iw >>= nc;
-    ww >>= (nc + LB);
-    xw = (iw^ww);
-    return xw == 0;
-}
-
-//------------------------------------------------------------------------------
-inline bool CFastSeeds::SeedSearchJob::CheckDel(
-        uint32_t iw, uint32_t ww, size_t & n_init_matches )
-{
-    uint32_t xw( iw^ww );
-    n_init_matches = (GetNFirstClear( xw )>>1);
-    size_t nc( n_init_matches<<1 );
-    iw >>= (nc + LB);
-    ww >>= nc;
-    xw = (iw^ww);
-    return xw == 0;
-}
-
-//------------------------------------------------------------------------------
-inline bool CFastSeeds::SeedSearchJob::CheckSubst(
-        uint32_t iw, uint32_t ww, size_t & n_init_matches )
-{
-    uint32_t xw( iw^ww );
-    xw = ((xw|(xw>>1))&0x55555555UL);
-    n_init_matches = (GetNFirstClear( xw )>>1);
-    return GetNSet( xw ) <= 1;
-}
-
-//------------------------------------------------------------------------------
-inline int CFastSeeds::SeedSearchJob::Check1Err( uint32_t w1, uint32_t w2 )
-{
-    static uint32_t const MASK = 0x3FFUL;
-
-    uint32_t xw( w1^w2 );
-    xw = ((xw|(xw>>1))&0x55555555UL);
-
-    if( GetNSet( xw ) <= 1 )
-    {
-        return 0;
-    }
-
-    size_t nc( GetNFirstClear( xw ) );
-    w1 >>= nc;
-    w2 >>= nc;
-    xw = (w1>>LB);
-    xw ^= (w2&MASK);
-
-    if( xw == 0 )
-    {
-        return 2;
-    }
-
-    xw = (w2>>LB);
-    xw ^= (w1&MASK);
-
-    if( xw == 0 )
-    {
-        return 1;
-    }
-
-    return 3;
-}
-*/
 
 //------------------------------------------------------------------------------
 inline CFastSeeds::SeedSearchJob::SeedSearchJob( 
@@ -925,49 +841,32 @@ inline void CFastSeeds::SeedSearchJob::MatchSubst( uint32_t anchor )
 {
     auto const & wt( o_.wt_ );
     auto const & wmap( o_.wmap_ );
-    // auto const & al( o_.atbl_[anchor] );
-    // auto const & d( al.data );
-
     auto ib( o_.fsidx_.cbegin( anchor ) );
 
-    /*
-    for( size_t i( 0 ); i < al.len; ++i )
+    for( WordTable::const_iterator wtb( wt.begin() + wmap[anchor] ),
+                                   wte( wt.begin() + wmap[anchor + 1] );
+         wtb != wte; ++wtb )
     {
-        auto wa( d[i].f.wanchor );
+        auto ww( wtb->wd.w.word );
+        auto w( ww&PWMASK );
 
-        for( WordTable::const_iterator wtb( wt.begin() + wmap[wa] ),
-                                       wte( wt.begin() + wmap[wa + 1] );
-             wtb != wte; ++wtb )
-    */
-        for( WordTable::const_iterator wtb( wt.begin() + wmap[anchor] ),
-                                       wte( wt.begin() + wmap[anchor + 1] );
-             wtb != wte; ++wtb )
+        if( GetBit( pa_[w/PWBITS], w%PWBITS ) == 0 )
         {
-            auto ww( wtb->wd.w.word );
-            /*
-            ww >>= LB;
-            ww += ((wa&LMASK)<<(WORD_BITS - LB));
-            */
-            auto w( ww&PWMASK );
+            ++jd_.pmisses;
+        }
+        else
+        {
+            ++jd_.phits;
+            auto ii( ib + sidx_[MkSI( ww )] ),
+                 iie( ib + sidx_[MkSI( ww ) + 1] );
+            for( ; ii != iie && ii->wd.w.word < ww; ++ii );
 
-            if( GetBit( pa_[w/PWBITS], w%PWBITS ) == 0 )
+            for( ; ii != iie && ii->wd.w.word == ww; ++ii )
             {
-                ++jd_.pmisses;
-            }
-            else
-            {
-                ++jd_.phits;
-                auto ii( ib + sidx_[MkSI( ww )] ),
-                     iie( ib + sidx_[MkSI( ww ) + 1] );
-                for( ; ii != iie && ii->wd.w.word < ww; ++ii );
-
-                for( ; ii != iie && ii->wd.w.word == ww; ++ii )
-                {
-                    SaveHit( *ii, *wtb );
-                }
+                SaveHit( *ii, *wtb );
             }
         }
-    // }
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -977,46 +876,24 @@ inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
     words.clear();
     auto const & wt( o_.wt_ );
     auto const & wmap( o_.wmap_ );
-    // auto const & al( o_.atbl_[anchor] );
-    // auto const & d( al.data );
 
-    /*
-    for( size_t i( 0 ); i < al.len; ++i )
+    for( WordTable::const_iterator wtb( wt.begin() + wmap[anchor] ),
+                                   wte( wt.begin() + wmap[anchor + 1] );
+         wtb != wte; ++wtb )
     {
-        auto wa( d[i].f.wanchor );
+        ExtHashWord hs { *wtb };
+        auto w( hs.hw.wd.w.word&PWMASK );
 
-        for( WordTable::const_iterator wtb( wt.begin() + wmap[wa] ),
-                                       wte( wt.begin() + wmap[wa + 1] );
-             wtb != wte; ++wtb )
-    */
-        for( WordTable::const_iterator wtb( wt.begin() + wmap[anchor] ),
-                                       wte( wt.begin() + wmap[anchor + 1] );
-             wtb != wte; ++wtb )
+        if( GetBit( pa_[w/PWBITS], w%PWBITS ) == 0 )
         {
-            ExtHashWord hs { *wtb };
-
-            /*
-            {
-                auto w( hs.hw.wd.w.word );
-                w >>= LB;
-                w += ((wa&LMASK)<<(WORD_BITS - LB));
-                hs.hw.wd.w.word = w;
-            }
-            */
-
-            auto w( hs.hw.wd.w.word&PWMASK );
-
-            if( GetBit( pa_[w/PWBITS], w%PWBITS ) == 0 )
-            {
-                ++jd_.pmisses;
-            }
-            else
-            {
-                ++jd_.phits;
-                words.push_back( hs );
-            }
+            ++jd_.pmisses;
         }
-    // }
+        else
+        {
+            ++jd_.phits;
+            words.push_back( hs );
+        }
+    }
 
     std::sort( words.begin(), words.end(),
                []( ExtHashWord const & x, ExtHashWord const & y )
@@ -1700,46 +1577,15 @@ void CFastSeeds::CreateWordTable()
 #endif
 }
 
-/*
-//------------------------------------------------------------------------------
-inline void CFastSeeds::UpdateAnchorLists( uint32_t wanchor )
-{
-    AnchorListEntry ale;
-    ale.f.wanchor = wanchor;
-
-    uint32_t ww( wanchor>>LB );
-    assert( atbl_[ww].len < ANCHOR_LIST_MAX_LEN );
-    atbl_[ww].data[atbl_[ww].len++] = ale;
-}
-*/
-
 //------------------------------------------------------------------------------
 inline void CFastSeeds::UpdateAnchorUseMap( uint32_t wa )
 {
-    uint32_t a( wa>>LB );
-    anchor_use_map_[a] = true;
+    anchor_use_map_[wa] = true;
 }
-
-/*
-//------------------------------------------------------------------------------
-inline void CFastSeeds::CreateAnchorTable()
-{
-    auto & ctx( bctx_.GetSearchCtx() );
-    StopWatch w( ctx.logger_ );
-
-    for( uint32_t wa( 0 ); wa < WMAP_SIZE - 1; ++wa )
-    {
-        UpdateAnchorLists( wa );
-    }
-
-    M_INFO( ctx.logger_, "generated anchor table" );
-}
-*/
 
 //------------------------------------------------------------------------------
 void CFastSeeds::Run()
 {
-    // CreateAnchorTable();
     CreateWordTable();
 
     auto & ctx( bctx_.GetSearchCtx() );
