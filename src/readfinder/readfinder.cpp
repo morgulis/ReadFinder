@@ -145,7 +145,7 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
         ( "action,A",
           po::value< std::string >( &requested_action )
           ->default_value( Action::NAMES[Action::SEARCH] ),
-          "action to perform (possible values: mkdb, search, seeds) "
+          "action to perform (possible values: mkdb, search) "
           "[default: search]" );
 
     //==========================================================================
