@@ -61,7 +61,9 @@ std::map< std::string, int > INFMT_MAP = {
     { "zfasta", CSeqInput::ZFASTA },
     { "fastq", CSeqInput::FASTQ },
     { "zfastq", CSeqInput::ZFASTQ },
+#ifdef USE_NGS
     { "sra", CSeqInput::SRA },
+#endif
 };
 
 //==============================================================================
@@ -198,9 +200,15 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
           "base name of the reference database" )
         ( "input,i",
           po::value< std::string >( &search_opts.input_1 ),
+#ifdef USE_NGS
           "FASTA/FASTQ (possibly gzip-compressed) file name or SRA "
           "accession of the input reads source "
           "(or of the first mate in the case of paired search with "
+#else
+          "FASTA/FASTQ (possibly gzip-compressed) file name "
+          "of the input reads source "
+          "(or of the first mate in the case of paired search with "
+#endif
           "FASTA/FASTQ input)" )
         ( "first-mate,1",
           po::value< std::string >( &search_opts.input_1 ),
@@ -222,7 +230,11 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
                         M_THROW( "unknown input format: " << v );
                     }
               } ),
+#ifdef USE_NGS
           "input file format {fasta,zfasta,fastq,zfastq,sra}; "
+#else
+          "input file format {fasta,zfasta,fastq,zfastq}; "
+#endif
           "[default: fasta or zfasta if name ends in .gz]" )
         ( "batch-size,b",
           po::value< size_t >( &search_opts.batch ),

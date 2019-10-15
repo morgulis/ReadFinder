@@ -36,7 +36,10 @@
 #include <libseq/fastq_input.hpp>
 #include <libseq/paired_input.hpp>
 #include <libseq/seqinput.hpp>
-#include <libseq/sra_input.hpp>
+
+#ifdef USE_NGS
+#   include <libseq/sra_input.hpp>
+#endif
 
 #include <libtools/exception.hpp>
 
@@ -60,10 +63,12 @@ CSeqInput * MkSeqInput( std::vector< std::string > const & fnames, int fmt,
             return new CFastqInput( fnames[0], compressed, start, n_seq );
         }
 
+#ifdef USE_NGS
         if( fmt == CSeqInput::SRA )
         {
             return new CSRAInput( fnames[0], start, n_seq );
         }
+#endif
     }
     else
     {

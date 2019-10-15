@@ -34,10 +34,13 @@
 #ifndef LIBSEQ_SRA_INPUT_HPP
 #define LIBSEQ_SRA_INPUT_HPP
 
+#include <libseq/defs.hpp>
+
+#ifdef USE_NGS
+
 #include <ngs/ReadCollection.hpp>
 
 #include <libseq/seqinput.hpp>
-#include <libseq/defs.hpp>
 
 SEQ_NS_BEGIN
 
@@ -65,6 +68,8 @@ private:
 };
 
 SEQ_NS_END
+
+#endif
 
 #endif
 

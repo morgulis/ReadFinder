@@ -31,9 +31,11 @@
     \brief Getting reads from SRA.
 */
 
-#include <ncbi-vdb/NGS.hpp>
-
 #include <libseq/sra_input.hpp>
+
+#ifdef USE_NGS
+
+#include <ncbi-vdb/NGS.hpp>
 
 SEQ_NS_BEGIN
 
@@ -100,4 +102,6 @@ bool CSRAInput::Next()
 }
 
 SEQ_NS_END
+
+#endif
 
