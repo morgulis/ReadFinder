@@ -78,6 +78,26 @@ CSearchContext::CSearchContext( CSearchOptions const & opts )
                             opts.end_read - opts.start_read ) );
     refs.reset( new CRefData( opts.db_name ) );
     refs->LoadAll();
+
+    if( pre_screen )
+    {
+        static char const * WS_EXT = ".ws";
+        static size_t const WORD_SET_SIZE = 1ULL<<32;
+        ws.resize( WORD_SET_SIZE );
+        std::vector< TWord > blocks( ws.num_blocks(), 0 );
+        auto fname( db_name + WS_EXT );
+        std::ifstream ifs( fname, std::ios_base::binary );
+
+        if( !ifs )
+        {
+            M_THROW( "error opening word set file " << fname <<
+                     " for reading" );
+        }
+
+        ifs.exceptions( std::ios_base::badbit );
+        ifs.read( (char *)blocks.data(), sizeof( TWord )*blocks.size() );
+        boost::from_block_range( blocks.begin(), blocks.end(), ws );
+    }
 }
 
 //------------------------------------------------------------------------------

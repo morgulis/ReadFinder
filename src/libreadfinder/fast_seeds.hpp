@@ -139,7 +139,7 @@ private:
 
 public:
 
-    CFastSeeds( CBatch & bctx, bool seeder_mode = false );
+    CFastSeeds( CBatch & bctx );
     void Run();
 
 private:
@@ -156,6 +156,7 @@ private:
     WordTable wt_;
     WordMap wmap_ = WordMap( WMAP_SIZE, 0 );
     BitSet anchor_use_map_;
+    bool prescreen_ = false;
 };
 
 READFINDER_NS_END

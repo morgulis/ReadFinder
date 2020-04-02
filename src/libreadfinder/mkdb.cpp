@@ -29,6 +29,7 @@
 
 #include <map>
 
+#include <boost/dynamic_bitset.hpp>
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 
@@ -279,18 +280,119 @@ void CReadFinderHitsDBFactory::Run()
 }
 
 //==============================================================================
+namespace
+{
+
+//==============================================================================
+class WordSource
+{
+public:
+
+    typedef uint32_t Word;
+
+    WordSource( TWord const * data, TSeqLen len );
+    void operator++();
+    Word operator*() const { return (Word)(w_&0xFFFFFFFFULL); }
+    operator bool() const { return !done_; }
+
+private:
+
+    TWord const * data_;
+    TWord w_ = 0,
+          nw_ = 0;
+    TSeqLen len_;
+    TSeqOff off_ = 0;
+    bool done_ = true;
+};
+
+//------------------------------------------------------------------------------
+inline WordSource::WordSource( TWord const * data, TSeqLen len )
+    :   data_( data ), len_( len )
+{
+    if( off_ >= len_ ) return;
+    done_ = false;
+    w_ = *data_++;
+    nw_ = *data_++;
+}
+
+//------------------------------------------------------------------------------
+inline void WordSource::operator++()
+{
+    if( ++off_ >= len_ )
+    {
+        done_ = true;
+        return;
+    }
+
+    w_ >>= LB;
+    w_ += (nw_<<((WL - 1)*LB));
+
+    if( off_%WL == 0 ) nw_ = *data_++;
+    else nw_ >>= LB;
+}
+
+//==============================================================================
+//------------------------------------------------------------------------------
+void CreateWorkSet( CMkDBOptions const & opts, CRefData const & refs )
+{
+    static char const * WS_EXT = ".ws";
+    static size_t const WORD_SET_SIZE = 1ULL<<32;
+    boost::dynamic_bitset< TWord > ws( WORD_SET_SIZE );
+
+    for( size_t i( 0 ), ie( refs.GetSize() ); i < ie; ++i )
+    {
+        for( WordSource seq( refs.GetSeqData( i ), refs.GetLength( i ) ),
+                        mask( refs.GetMaskData( i ), refs.GetLength( i ) );
+                seq; ++seq, ++mask )
+        {
+            WordSource::Word mw( *mask );
+
+            if( mw == 0 )
+            {
+                WordSource::Word sw( *seq ),
+                                 rsw( sw );
+                SEQ_NS::ReverseComplement< eNCBI2NA >( rsw );
+                ws.set( sw );
+                ws.set( rsw );
+            }
+        }
+    }
+
+    std::vector< TWord > blocks( ws.num_blocks(), 0 );
+    boost::to_block_range( ws, blocks.begin() );
+    auto fname( opts.output + WS_EXT );
+    std::ofstream ofs( fname, std::ios_base::binary );
+
+    if( !ofs )
+    {
+        M_THROW( "error opening index map file "<< fname << " for writing" );
+    }
+
+    ofs.exceptions( std::ios_base::badbit );
+    ofs.write( (char const *)blocks.data(), sizeof( TWord )*blocks.size() );
+}
+
+}
+
+//==============================================================================
 //------------------------------------------------------------------------------
 void MakeDB( CMkDBOptions const & opts )
 {
     CommonCtxP ctx( new CCommonContext( opts ) );
     CReadFinderHitsDBFactory( opts, ctx ).Run();
 
-    if( opts.mkidx )
+    if( opts.mkidx || opts.mkws )
     {
         CRefData refs( opts.output );
         refs.LoadAll();
-        CFastSeedsIndex( ctx, refs ).Create( opts.n_threads )
-                                    .Save( opts.output );
+        if( opts.mkws ) CreateWorkSet( opts, refs );
+
+        if( opts.mkidx )
+        {
+            CFastSeedsIndex( ctx, refs )
+                .Create( opts.n_threads )
+                .Save( opts.output );
+        }
     }
 }
 

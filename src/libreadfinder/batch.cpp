@@ -37,7 +37,8 @@ READFINDER_NS_BEGIN
 //------------------------------------------------------------------------------
 CBatch::CBatch( CSearchContext & ctx, size_t batch_num )
     : ctx_( ctx ),
-      reads_( new CReadData( /*ctx_.memmgr_, */ctx_.logger_, *ctx_.seqs,
+      reads_( new CReadData( ctx_.logger_, *ctx_.seqs,
+                             (ctx_.pre_screen ? &ctx.ws : nullptr),
                              ctx_.batch,
                              ctx_.progress_flags_ ) ),
       batch_num_( batch_num )
@@ -102,7 +103,7 @@ bool CBatch::RunSeeder()
 {
     if( reads_->GetNReads() != 0 )
     {
-        CFastSeeds( *this, true ).Run();
+        CFastSeeds( *this ).Run();
         return true;
     }
 

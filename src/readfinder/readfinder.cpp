@@ -187,7 +187,10 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
           "base name of output database files" )
         ( "mkidx",
           po::bool_switch( &mkdb_opts.mkidx ),
-          "enable creation of the database index" );
+          "enable creation of the database index" )
+        ( "mkws",
+          po::bool_switch( &mkdb_opts.mkws ),
+          "enable creation of word set for pre-screening" );
 
     //==========================================================================
     // search options description
@@ -264,7 +267,10 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
           "[default: 0.5]" )
         ( "per-mate-marks,m",
           po::bool_switch( &search_opts.per_mate_marks ),
-          "reporting on a per-mate basis" );
+          "reporting on a per-mate basis" )
+        ( "prescreen",
+          po::bool_switch( &search_opts.pre_screen ),
+          "pre-screen reads for presense of words from reference" );
 
     //==========================================================================
     // parse and process global options

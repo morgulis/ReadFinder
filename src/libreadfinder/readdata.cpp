@@ -175,16 +175,108 @@ auto CReadData::AddSeqData(
 }
 
 //------------------------------------------------------------------------------
+namespace
+{
+    std::pair< uint32_t, uint32_t > IUPACNA2NCBI2NA( char iupacna_base )
+    {
+        uint32_t base,
+                 ambig = 0;
+
+        switch( iupacna_base )
+        {
+            case 'A': case 'a': base = 0; break;
+            case 'C': case 'c': base = 0x40000000UL; break;
+            case 'G': case 'g': base = 0x80000000UL; break;
+            case 'T': case 't': base = 0xC0000000UL; break;
+            default: base = 0; ambig = 1; break;
+        }
+
+        return std::make_pair( base, ambig );
+    }
+}
+
+bool CReadData::PreScreen(
+    boost::dynamic_bitset< TWord > const & ws, std::string const & iupac )
+{
+    // a window is composed of 6 16-mers within a 21-mer.
+    //
+    static constexpr size_t const WLEN = 6;
+    static constexpr size_t const NMER = 21;
+    static constexpr uint8_t WINDOW_MASK = 0x3FU;
+    static constexpr uint32_t NMER_MASK = 0x1FFFFFUL;
+
+    if( iupac.size() < NMER ) return false;
+
+    uint8_t window;
+    uint32_t ambigs;
+    size_t n_present = 0,
+           n_ambigs = 0;
+    uint32_t word( 0 );
+
+    uint32_t base,
+             ambig;
+    
+    size_t i( 0 );
+
+    for( ; i < NMER - WLEN; ++i )
+    {
+        std::tie( base, ambig ) = IUPACNA2NCBI2NA( iupac[i] );
+        ambigs <<= 1;
+        ambigs += ambig;
+        n_ambigs += ambig;
+        word >>= 2;
+        word += base;
+    }
+
+    for( ; i < NMER - 1; ++i )
+    {
+        std::tie( base, ambig ) = IUPACNA2NCBI2NA( iupac[i] );
+        ambigs <<= 1;
+        ambigs += ambig;
+        n_ambigs += ambig;
+        word >>= 2;
+        word += base;
+        unsigned int present( ws[word] );
+        n_present += present;
+        window <<= 1;
+        window += present;
+    }
+
+    for( ; i < iupac.size(); ++i )
+    {
+        std::tie( base, ambig ) = IUPACNA2NCBI2NA( iupac[i] );
+        ambigs <<= 1;
+        ambigs &= NMER_MASK;
+        ambigs += ambig;
+        n_ambigs += ambig;
+        word >>= 2;
+        word += base;
+        unsigned int present( ws[word] );
+        n_present += present;
+        window <<= 1;
+        window &= WINDOW_MASK;
+        window += present;
+        if( n_ambigs == 0 && n_present == WLEN ) return true;
+        n_ambigs -= (ambigs>>(NMER - 1));
+        n_present -= (window>>(WLEN - 1));
+    }
+
+    return false;
+}
+
+//------------------------------------------------------------------------------
 CReadData::CReadData( 
-        CLogger & logger,
-        CSeqInput & seqs, size_t batch_size, int progress_flags
+        CLogger & logger, CSeqInput & seqs,
+        boost::dynamic_bitset< TWord > const * ws,
+        size_t batch_size, int progress_flags
     )
     : CReadData()
 {
     static size_t const MAX_READ_LEN = 32*1024;
 
     size_t i( 0 ),
-           n_skipped( 0 );
+           n_skipped( 0 ),
+           n_screened( 0 );
     CCounterProgress p( "reading input data", "reads", progress_flags );
     p.Start();
 
@@ -215,8 +307,17 @@ CReadData::CReadData(
             for( size_t mi( 0 ), mie( std::min( (size_t)2, sd.GetNCols() ) );
                  mi < mie; ++mi )
             {
-                AddSeqData( sd.GetId(), sd.GetData( mi ),
-                            eFWD, ToMate( mi ), (mie > 1) );
+                if( ws == nullptr || PreScreen( *ws, sd.GetData( mi ) ) )
+                {
+                    AddSeqData( sd.GetId(), sd.GetData( mi ),
+                                eFWD, ToMate( mi ), (mie > 1) );
+                }
+                else
+                {
+                    ++n_screened;
+                    AddSeqData( sd.GetId(), "",
+                                eFWD, ToMate( mi ), (mie > 1) );
+                }
             }
         }
 
@@ -230,6 +331,8 @@ CReadData::CReadData(
 
     M_INFO( logger, n_skipped <<
                     " reads were skipped due to length restriction" );
+    M_INFO( logger, n_screened <<
+                    " mates were skipped due to pre-screening" );
     p.Stop();
     Freeze();
 }

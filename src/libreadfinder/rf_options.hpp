@@ -81,6 +81,7 @@ struct CMkDBOptions : public CommonOptions
     std::string input;      ///< File name of the input FASTA file.
     std::string output;     ///< Base name of the database files.
     bool mkidx = false;     ///< Generate seeder index.
+    bool mkws = false;      ///< Generate word set for pre-screeening.
 
     friend std::ostream & operator<<(
             std::ostream & os, CMkDBOptions const & x )
@@ -90,6 +91,7 @@ struct CMkDBOptions : public CommonOptions
                   <<    "   input: " << x.input << '\n'
                   <<    "   output: " << x.output << '\n'
                   <<    "   generate seeder index: " << x.mkidx << '\n'
+                  <<    "   generate word set: " << x.mkws << '\n'
                   << std::endl;
     }
 };
@@ -154,6 +156,7 @@ struct CSearchOptions : public CommonOptions
     float coverage_th = 0.5f;
 
     bool per_mate_marks = false; ///< Report individual mates in seeder.
+    bool pre_screen = false;     ///< Pre-screen reads.
 
     friend std::ostream & operator<<(
             std::ostream & os, CSearchOptions const & x )

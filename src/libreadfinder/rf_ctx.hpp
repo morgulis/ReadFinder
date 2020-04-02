@@ -40,6 +40,8 @@
 #include <libtools/logger.hpp>
 #include <libtools/progress.hpp>
 
+#include <boost/dynamic_bitset.hpp>
+
 READFINDER_NS_BEGIN
 
 //==============================================================================
@@ -81,6 +83,7 @@ public:
 
     std::unique_ptr< CSeqInput > seqs;
     std::unique_ptr< CRefData > refs;
+    boost::dynamic_bitset< TWord > ws;
     size_t n_reads = 0,
            n_mapped_reads = 0;
 
