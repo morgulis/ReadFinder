@@ -207,8 +207,8 @@ bool CReadData::PreScreen(
 
     if( iupac.size() < NMER ) return false;
 
-    uint8_t window;
-    uint32_t ambigs;
+    uint8_t window = 0;
+    uint32_t ambigs = 0;
     size_t n_present = 0,
            n_ambigs = 0;
     uint32_t word( 0 );
