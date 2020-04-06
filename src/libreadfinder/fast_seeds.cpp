@@ -43,7 +43,7 @@ READFINDER_NS_BEGIN
 
 //==============================================================================
 //------------------------------------------------------------------------------
-CFastSeeds::CFastSeeds( CBatch & bctx, bool seeder_mode )
+CFastSeeds::CFastSeeds( CBatch & bctx )
     : bctx_( bctx ),
       fsidx_( CommonCtxP( new CCommonContext(
                       static_cast< CCommonContext & >( 
@@ -52,6 +52,7 @@ CFastSeeds::CFastSeeds( CBatch & bctx, bool seeder_mode )
       anchor_use_map_( ANCHOR_TBL_SIZE, false )// ,
 {
     bctx_.GetSearchCtx().refs->LoadAll();
+    prescreen_ = bctx_.GetSearchCtx().pre_screen;
 }
 
 //==============================================================================
@@ -1592,7 +1593,7 @@ void CFastSeeds::Run()
 
     if( !ctx.db_name.empty() )
     {
-        try { fsidx_.Load( ctx.db_name ); }
+        try { fsidx_.Load( ctx.db_name, prescreen_ ); }
         catch( std::exception const & e )
         {
             M_INFO( ctx.logger_, "index load failed: " );

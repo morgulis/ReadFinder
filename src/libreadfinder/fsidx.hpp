@@ -152,6 +152,7 @@ private:
 
     class IndexEntrySource;
     class IndexMaskSource;
+    class WordSource;
 
 public:
 

@@ -44,6 +44,8 @@
 
 #include <libtools/logger.hpp>
 
+#include <boost/dynamic_bitset.hpp>
+
 READFINDER_NS_BEGIN
 
 using namespace SEQ_NS;
@@ -62,8 +64,10 @@ public:
 
     CReadData();
     CReadData( CLogger & logger,
-               CSeqInput & seqs, size_t batch_size
-               , int progress_flags = 0
+               CSeqInput & seqs,
+               boost::dynamic_bitset< TWord > const * ws,
+               size_t batch_size,
+               int progress_flags = 0
              );
 
     OrdId AddSeqData( std::string const & id,
@@ -141,6 +145,9 @@ private:
                      EStrand strand, uint8_t mate_idx );
     void ExtendBuffers( size_t len );
     void ExtendBuffer( size_t len );
+
+    bool PreScreen(
+        boost::dynamic_bitset< TWord > const & ws, std::string const & iupac );
 
     std::unique_ptr< IdSet > idset_;
 

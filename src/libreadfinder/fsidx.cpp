@@ -867,6 +867,27 @@ CFastSeedsIndex & CFastSeedsIndex::Save( std::string const & basename )
 CFastSeedsIndex & CFastSeedsIndex::Load(
         std::string const & basename, bool load_chunks )
 {
+    /*
+    // load word set for pre-screening reads
+    if( load_ws )
+    {
+        std::vector< TWord > blocks( word_set_.num_blocks(), 0 );
+        auto fname( basename + WS_EXT );
+        std::ifstream ifs( fname, std::ios_base::binary );
+
+        if( !ifs )
+        {
+            M_THROW( "error opening word set file " << fname <<
+                     " for reading" );
+        }
+
+        ifs.exceptions( std::ios_base::badbit );
+        ifs.read( (char *)blocks.data(), sizeof( TWord )*blocks.size() );
+        boost::from_block_range( blocks.begin(), blocks.end(), word_set_ );
+        M_INFO( ctx_->logger_, "loaded word set from " << fname );
+    }
+    */
+    
     // create reference offset data
     {
         ssize_t n_job_pos( 0 );

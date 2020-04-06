@@ -50,7 +50,6 @@ class CBatch
 public:
 
     CBatch( CSearchContext & ctx, size_t batch_num = 0 );
-    bool Run();
     bool RunSeeder();
 
     CSearchContext const & GetSearchCtx() const { return ctx_; }
