@@ -3,37 +3,45 @@ project( "readfinder" )
 
 option( NOASSERT "disable asserts in Debug build" )
 
-#set( NGS_BASE_LCL $ENV{NGS_BASE} )
+set( rf_includes ${CMAKE_CURRENT_BINARY_DIR}
+                 ${CMAKE_CURRENT_SOURCE_DIR} )
+set( rf_libdir "" )
+set( rf_libs "" )
 
-#if( "${NGS_BASE_LCL}" STREQUAL "" )
-#    set( NGS_BASE_LCL "/panfs/traces01.be-md.ncbi.nlm.nih.gov/trace_software/ngs" )
-#endif()
-
-
-if( "${ENABLE_LCL_BOOST}" STREQUAL "Y" )
-    if( "${BOOST_TAG}" STREQUAL "" )
-        set( BOOST_TAG "-gcc73-mt-1_62-64" )
-    endif()
-    set( BOOST_HOME "/netopt/ncbi_tools64/boost-1.62.0-ncbi1" )
-    set( BOOST_INC "${BOOST_HOME}/include" )
-    set( BOOST_LIB "${BOOST_HOME}/lib" )
+if( "$ENV{NCBI_BOOST}" STREQUAL "Y" )
+    set( rf_includes ${rf_includes}
+                     $ENV{BOOST_INCLUDES} )
+    set( rf_libdir ${rf_libdir}
+                   $ENV{BOOST_LIBDIR} )
+    set( rf_libs ${rf_libs}
+                 boost_program_options$ENV{BOOST_TAG}
+                 boost_iostreams$ENV{BOOST_TAG} )
+else()
+    find_package( Boost 1.62 REQUIRED
+                  COMPONENTS program_options
+                             iostreams )
+    set( rf_includes ${rf_includes}
+                     ${Boost_INCLUDE_DIRS} )
+    set( rf_libs ${rf_libs}
+                 ${Boost_LIBRARIES} )
 endif()
 
 if( "${ENABLE_NGS}" STREQUAL "Y" )
-set( USE_NGS "1" )
-include_directories( ${CMAKE_CURRENT_BINARY_DIR}
-                     ${CMAKE_CURRENT_SOURCE_DIR} 
-                     ${BOOST_INC}
-                     ${NGS_HOME}/include
-                     ${VDB_HOME}/include )
-link_directories( ${BOOST_LIB} ${NGS_HOME}/lib64 ${VDB_HOME}/lib64 )
-else()
-include_directories( ${CMAKE_CURRENT_BINARY_DIR}
-                     ${CMAKE_CURRENT_SOURCE_DIR} 
-                     ${BOOST_INC} )
-link_directories( ${BOOST_LIB} )
+    set( USE_NGS "1" )
+    set( rf_includes ${rf_includes}
+                     $ENV{NGS_INCLUDE}
+                     $ENV{NGS_ROOT}/include
+                     $ENV{VDB_ROOT}/include )
+    set( rf_libdir ${rf_libdir}
+                   $ENV{NGS_LIBDIR}
+                   $ENV{NGS_ROOT}/lib64
+                   $ENV{VDB_ROOT}/lib64 )
+    set( rf_libs ${rf_libs}
+                 ncbi-ngs-c++ ngs-c++ ncbi-vdb )
 endif()
-#link_directories( ${NGS_BASE_LCL}/linux/release/x86_64/lib )
+
+include_directories( ${rf_includes} )
+link_directories( ${rf_libdir} )
 
 if( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" )
     set( ATB_GCC "1" )
