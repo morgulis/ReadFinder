@@ -1,0 +1,6 @@
+#cmakedefine ATB_GCC @ATB_GCC@
+#cmakedefine USE_NGS @USE_NGS@
+#define HAVE_INTTYPES_H 1
+
+#define ATB_NS atb
+
