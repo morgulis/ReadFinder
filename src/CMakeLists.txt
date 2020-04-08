@@ -10,7 +10,7 @@ set( rf_libs "" )
 
 if( "$ENV{NCBI_BOOST}" STREQUAL "Y" )
     set( rf_includes ${rf_includes}
-                     $ENV{BOOST_INCLUDES} )
+                     $ENV{BOOST_INCLUDE} )
     set( rf_libdir ${rf_libdir}
                    $ENV{BOOST_LIBDIR} )
     set( rf_libs ${rf_libs}
