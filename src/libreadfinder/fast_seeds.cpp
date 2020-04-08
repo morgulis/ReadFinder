@@ -1018,7 +1018,7 @@ inline float CFastSeeds::ReadMarkingJob::ReadIsCovered(
     {
         auto d2( b->second.GetDiag() );
 
-        if( d2 > d1 )
+        if( dc == d1 && d2 > d1 )
         {
             c = b;
             dc = d2;
