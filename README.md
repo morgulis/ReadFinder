@@ -189,8 +189,35 @@ All other options, except `--version [-v]` are ignored.
 Default value: `search`.
 
 Action to perform. Possible values are `mkdb` and `search`.
+`mkdb` action prepares a reference database. `search` action scans the
+reads for matches to the reference database.
   
 #### Common options
+
+The following options work for both `mkdb` and `search` actions.
+
+```--log-file <file_name>```
+
+Redirect program log to the specified file. By default log goes to the
+standard output.
+
+```--trace-level <level>```
+
+Default value: `warning`.
+
+Sets the severity threshold for log messages. Possible values are:
+`quiet`, `info`, `warning`, `error`.
+
+```--threads [-t] <int>```
+
+Default value: `0`
+
+Max number of worker threads to use. The value of `0` means selects
+max hardware treads supported by the machine.
+
+```--quiet```
+
+Disable progress reporting.
 
 #### Options specific to `mkdb` action
 
