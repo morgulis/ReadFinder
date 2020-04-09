@@ -174,6 +174,26 @@ readfinder [global options] [common options] [action specific options]
 
 #### Global options
 
-```--help [-h]```
+```--version [-v]```
+
+Print application version information to the standard output and exit.
+All other options are ignored.
+  
+```--help [-h]``` 
+
+Print application usage help message to the standard output and exit.
+All other options, except `--version [-v]` are ignored.
+  
+```--action [-A] <action_name>```
+
+Default value: `search`.
+
+Action to perform. Possible values are `mkdb` and `search`.
+  
+#### Common options
+
+#### Options specific to `mkdb` action
+
+#### Options specific to `search` action
 
 ## Examples
