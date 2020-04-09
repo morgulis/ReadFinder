@@ -91,10 +91,42 @@ Next step is to build NGS SDK and install it in `$ROOT/NGS/ngs`.
 > ./configure --prefix=$ROOT/NGS/ngs --build-prefix=$ROOT/NGS/build
 > make
 > make install
+> popd
 ```
 The library and headers are now installed under `$ROOT/NGS/ngs/`.
 
+#### Install VDB software
+
+Clone ncbi-vdb repository from github.
+
+```
+> pushd $ROOT/NGS/vdb-src
+> git clone https://github.com/ncbi/ncbi-vdb.git
+```
+At this point `$ROOT/NGS/vdb-src` will contain subdirectory `ncbi-vdb` with
+NGS SDK sources.
+
+Next step is to build VDB and install it in `$ROOT/NGS/vdb`.
+
+```
+> cd ncbi-vdb
+> ./configure --prefix=$ROOT/NGS/vdb --build-prefix=$ROOT/NGS/build --with-ngs-sdk-prefix=$ROOT/NGS/ngs
+> make
+> make install
+> popd
+```
+
+The library and headers are now installed under `$ROOT/NGS/vdb/`.
+
 ## ReadFinder installation
+
+Clone readfinder git repository.
+
+```
+> mkdir -p $ROOT/readfinder/build
+> pushd $ROOT/readfinder
+> git clone https://github.com/morgulis/ReadFinder
+```
 
 ## Usage
 
@@ -103,6 +135,15 @@ sequences and selects reads that are covered by such matches within a narrow ban
 of diagonals up to a user specified threshold. The output is fasta formatted file
 of selected reads.
 
+### Readfinder invocation and command line options
 
+```
+readfinder [global options] [common options] [action specific options]
+```
+
+#### Global options
+
+```--help [-h]```
+hello
 
 ## Examples
