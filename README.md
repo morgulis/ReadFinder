@@ -174,16 +174,19 @@ readfinder [global options] [common options] [action specific options]
 
 #### Global options
 
+-----------------------------------
 ```--version [-v]```
 
 Print application version information to the standard output and exit.
 All other options are ignored.
   
+-----------------------------------
 ```--help [-h]``` 
 
 Print application usage help message to the standard output and exit.
 All other options, except `--version [-v]` are ignored.
   
+-----------------------------------  
 ```--action [-A] <action_name>```
 
 Default value: `search`.
@@ -196,11 +199,13 @@ reads for matches to the reference database.
 
 The following options work for both `mkdb` and `search` actions.
 
+-----------------------------------
 ```--log-file <file_name>```
 
 Redirect program log to the specified file. By default log goes to the
 standard output.
 
+-----------------------------------
 ```--trace-level <level>```
 
 Default value: `warning`.
@@ -208,6 +213,7 @@ Default value: `warning`.
 Sets the severity threshold for log messages. Possible values are:
 `quiet`, `info`, `warning`, `error`.
 
+-----------------------------------
 ```--threads [-t] <int>```
 
 Default value: `0`
@@ -215,22 +221,26 @@ Default value: `0`
 Max number of worker threads to use. The value of `0` means selects
 max hardware treads supported by the machine.
 
+-----------------------------------
 ```--quiet```
 
 Disable progress reporting.
 
 #### Options specific to `mkdb` action
 
+-----------------------------------
 ```--input [-i] <file_name>```
 
 Name of the Fasta file containing reference sequences. If the name
 ends in `.gz` the file is assummed compressed by gzip.
 
+-----------------------------------
 ```--output [-o] <name>```
 
 Base name for database files. ReadFinder database consists of several
 files. This parameter is the common prefix for the database file names.
 
+-----------------------------------
 ```--mkidx```
 
 Add word index to the database. By default the index is created on the
@@ -239,6 +249,7 @@ references. In this case this flags allows to pre-compute the index
 and store it along with other database files. During the search, the
 index is automatically loaded from disk, if present.
 
+-----------------------------------
 ```--mkws```
 
 Add word bitset to the database. This option must be specified if
@@ -247,5 +258,120 @@ speed and memory optimization, when most of the reads are not expected
 to match the reference.
 
 #### Options specific to `search` action
+
+-----------------------------------
+```--db [-d] <name>```
+
+Base name for the database (previousely created by `mkdb` action).
+
+-----------------------------------
+```--input [-i] <name>```
+
+Input specification. `name` is either a file name or SRA accession,
+depending on the value of `--in-fmt` option. If SRA accession is
+specified, then paired run will induce paired search; non-paired run
+will induce non-paired search. If a file is specified, then the 
+search is non-paired. Use `--first-mate` and `--second-mate`
+options to specify input files for paired search.
+
+-----------------------------------
+```--first-mate [-1] <file_name>```
+
+Name of the file containing first mates of the input reads.
+
+-----------------------------------
+```--second-mate [-2] <file_name>```
+
+Name of the file containing second mates of the input reads.
+
+-----------------------------------
+```--in-fmt [-F] <format_name>```
+
+Default value: `fasta` or `zfasta`, if input file name ends in `.gz`
+
+The following values are supported:
+  - `fasta` --- uncompressed fasta file(s)
+  - `zfasta` --- gzip compressed fasta file(s)
+  - `fastq` --- uncompressed fastq file(s)
+  - `zfastq` --- gzip compressed fastq file(s)
+  - `sra` --- SRA accession.
+
+In the case of paired input, mixed formats are not supported.
+
+-----------------------------------
+```--batch-size [-b] <positive_int>```
+
+Default value: `5000000`
+
+Process input in batches of this size.
+
+-----------------------------------
+```--first-read <non-negative_int>```
+
+Default value: `0`
+
+Index of the first read to process (0-based).
+
+-----------------------------------
+```--last-read <non-negative_int>```
+
+Default value: number of reads - 1
+
+Index of the last read to process (0-based).
+
+-----------------------------------
+```--output [-o] <file_name>```
+
+Default: standard output
+
+Name of the output Fasta file containing matching reads.
+
+-----------------------------------
+```--covered-bases [-B] <non-negative_int>```
+
+Default: `0`
+
+Minimum number of bases covered by matches within a diagonal
+band (see `--max-diag-delta` option) needed to select the
+sequence as matching. A sequence is selected if it satisfies
+either `--covered-bases` constraint, or `--coverage-ratio`
+constraint.
+
+-----------------------------------
+```--coverage-ratio [-c] <float>```
+
+Default value: `0.5`
+
+The value must be between `0.0` and `1.0`. The minimum
+proportion of bases covered by matches within a diagonal
+band (see `--max-diag-delta` option) needed to select the
+sequence as matching. A sequence is selected if it satisfies
+either `--covered-bases` constraint, or `--coverage-ratio`
+constraint.
+
+-----------------------------------
+```--max-diag-delta [-D] <non-negative_int>```
+
+Default value: `4`
+
+Matches used for `--covered-bases` and `--coverage-ratio` tests
+must on diagonals that are at most this far from each other.
+
+-----------------------------------
+```--per-mate-marks [-m]```
+
+By default, if a mate in a paired read is matched, both mate
+sequences appear in the output. If this flag is specified,
+only the mate that matches will appear in the output.
+
+-----------------------------------
+```--prescreen```
+
+If this flag is specified, a special check is performed to
+quickly filter out reads that can't satisfy matching criteria.
+This optimization should only be used when it is known that
+very small ratio of reads will match. The database must be
+created with `--mkws` option in order to use this feature.
+
 
 ## Examples
