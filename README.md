@@ -126,7 +126,38 @@ Clone readfinder git repository.
 > mkdir -p $ROOT/readfinder/build
 > pushd $ROOT/readfinder
 > git clone https://github.com/morgulis/ReadFinder
+> cd build
 ```
+
+ReadFinder sources are now installed under `$ROOT/readfinder/ReadFinder`.
+
+If boost is installed in `$ROOT/boost/install`, then prepend the following command 
+with `Boost_DIR=$ROOT/boost/install` and also execute:
+
+```
+export LD_LIBRARY_PATH=$ROOT/boost/install/lib:$LD_LIBRARY_PATH
+```
+
+To configure build without NGS:
+
+```
+> cmake -DCMAKE_BUILD_TYPE=Release ../ReadFinder/src
+```
+
+To configure build with NGS support:
+
+```
+> NGS_ROOT=$ROOT/NGS/ngs VDB_ROOT=$ROOT/NGS/vdb cmake -DENABLE_NGS=Y -DCMAKE_BUILD_TYPE=Release ../ReadFinder/src
+```
+
+After build is configured, run `make`.
+
+```
+> make
+> popd
+```
+
+ReadFinder executable should be in `$ROOT/readfinder/build/readfinder/` directory.
 
 ## Usage
 
@@ -144,6 +175,5 @@ readfinder [global options] [common options] [action specific options]
 #### Global options
 
 ```--help [-h]```
-hello
 
 ## Examples
