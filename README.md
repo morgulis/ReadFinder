@@ -221,6 +221,31 @@ Disable progress reporting.
 
 #### Options specific to `mkdb` action
 
+```--input [-i] <file_name>```
+
+Name of the Fasta file containing reference sequences. If the name
+ends in `.gz` the file is assummed compressed by gzip.
+
+```--output [-o] <name>```
+
+Base name for database files. ReadFinder database consists of several
+files. This parameter is the common prefix for the database file names.
+
+```--mkidx```
+
+Add word index to the database. By default the index is created on the
+fly during the search. However this can reduce performance for large
+references. In this case this flags allows to pre-compute the index
+and store it along with other database files. During the search, the
+index is automatically loaded from disk, if present.
+
+```--mkws```
+
+Add word bitset to the database. This option must be specified if
+`--prescreen` option is used for search. This allows for large
+speed and memory optimization, when most of the reads are not expected
+to match the reference.
+
 #### Options specific to `search` action
 
 ## Examples
