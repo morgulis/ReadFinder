@@ -38,6 +38,20 @@ if( "${ENABLE_NGS}" STREQUAL "Y" )
                    $ENV{VDB_ROOT}/lib64 )
     set( rf_libs ${rf_libs}
                  ncbi-ngs-c++ ngs-c++ ncbi-vdb )
+else()
+    if( "${ENABLE_NGS}" STREQUAL "static" )
+        set( USE_NGS "1" )
+        set( rf_includes ${rf_includes}
+                         $ENV{NGS_INCLUDE}
+                         $ENV{NGS_ROOT}/include
+                         $ENV{VDB_ROOT}/include )
+        set( rf_libdir ${rf_libdir}
+                       $ENV{NGS_LIBDIR}
+                       $ENV{NGS_ROOT}/lib64
+                       $ENV{VDB_ROOT}/lib64 )
+        set( rf_libs ${rf_libs}
+                     ncbi-ngs-c++-static ngs-c++-static ncbi-vdb-static )
+    endif()
 endif()
 
 include_directories( ${rf_includes} )
