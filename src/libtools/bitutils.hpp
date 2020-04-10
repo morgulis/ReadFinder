@@ -850,9 +850,9 @@ inline void ReverseUnits( T_Word * buf, ssize_t off, size_t n_units )
     ReverseUnits< T_UNIT >( buf + 1, n_words );
     size_t right_flank( WUNITS - off ),
            left_flank( n_units_adj%WUNITS );
-    T_Word first( *buf ),
+    T_Word first[2] = { *buf, 0 },
            last( left_flank > 0 ? *(buf + n_words + 1) : 0 );
-    ReverseField< T_UNIT >( first, off, WUNITS );
+    ReverseField< T_UNIT >( first[0], off, WUNITS );
 
     if( left_flank > 0 )
     {
@@ -876,7 +876,7 @@ inline void ReverseUnits( T_Word * buf, ssize_t off, size_t n_units )
     }
 
     CopyData< T_UNIT >( 
-            buf, &first, off + left_flank + n_words*WUNITS, off, right_flank );
+            buf, first, off + left_flank + n_words*WUNITS, off, right_flank );
 }
 
 //------------------------------------------------------------------------------
