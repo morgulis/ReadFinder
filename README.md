@@ -375,3 +375,39 @@ created with `--mkws` option in order to use this feature.
 
 
 ## Examples
+
+Assume reference sequence is in file `ref.fa`. To create the 
+database out of it:
+
+```readfinder -A mkdb -i ref.fa -o ref```
+
+This will generate the following files:
+- `ref.dat`
+- `ref.ids`
+- `ref.off`
+
+To create additional reference index (especially useful for large references):
+
+```readfinder -A mkdb -i ref.fa -o ref --mkidx```
+
+This will generate the following additional files:
+- `ref.idm`
+- `ref.idx`
+
+To create word bitset needed for read pre-screening:
+
+```readfinder -A mkdb -i ref.fa -o ref --mkidx --mkws```
+
+This adds another file `ref.ws`.
+
+To match SRA accession SRR6399765 against `ref` database in batches of 100M reads,
+pre-screening the reads, matching at least 40 bp or 60% of the mate sequence,
+selecting only matching mates, and sending results to SRR6399765.out.fa:
+
+```readfinder -A search -d ref -F sra -i SRR6399765 -m --prescreen -b 100000000 -B 40 -c 0.6 -o SRR6399765.out.fa```
+
+To do the same when reads are in compressed fastq files SRR6399765_1.fq.gz and SRR6399765_2.fq.gz:
+
+```readfinder -A search -d ref -F fastq -1 SRR6399765_1.fq.gz -2 SRR6399765_2.fq.gz -m --prescreen -b 100000000 -B 40 -c 0.6 -o SRR6399765.out.fa```
+
+
