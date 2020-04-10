@@ -390,6 +390,7 @@ inline void CFastSeedsIndex::PopulateIndexJob::operator()()
             {
                 auto anchor( ies.GetAnchor() );
                 IndexEntry ie;
+                ie.wd.data = 0;
                 ie.wd.w.word = ies.GetWord();
                 // ie.wd.w.sfx = ies.GetSfx();
                 ie.pos = ies.GetPos();
