@@ -131,7 +131,7 @@ Clone readfinder git repository.
 
 ReadFinder sources are now installed under `$ROOT/readfinder/ReadFinder`.
 
-If boost is installed in `$ROOT/boost/install`, then prepend the following command 
+If boost is installed in `$ROOT/boost/install`, then prepend the cmake commands below 
 with `Boost_DIR=$ROOT/boost/install` and also execute:
 
 ```
@@ -147,7 +147,7 @@ To configure build without NGS:
 To configure build with NGS support:
 
 ```
-> NGS_ROOT=$ROOT/NGS/ngs VDB_ROOT=$ROOT/NGS/vdb cmake -DENABLE_NGS=Y -DCMAKE_BUILD_TYPE=Release ../ReadFinder/src
+> NGS_ROOT=$ROOT/NGS/ngs VDB_ROOT=$ROOT/NGS/vdb cmake -DENABLE_NGS=static -DCMAKE_BUILD_TYPE=Release ../ReadFinder/src
 ```
 
 After build is configured, run `make`.
