@@ -1011,7 +1011,7 @@ inline float CFastSeeds::ReadMarkingJob::ReadIsCovered(
     assert( b != e );
     auto cth( o_.bctx_.GetSearchCtx().coverage_th );
     auto clenth( o_.bctx_.GetSearchCtx().covered_bases );
-    auto d1( -diag_delta - 1 ), dc( d1 );
+    TSeqOff d1( -diag_delta - cover_.size() - 1 ), dc( d1 );
     cth = cover_.size()*cth;
 
     for( auto c( b ); b != e; ++b )
