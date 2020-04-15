@@ -131,7 +131,7 @@ Clone readfinder git repository.
 
 ReadFinder sources are now installed under `$ROOT/readfinder/ReadFinder`.
 
-If boost is installed in `$ROOT/boost/install`, then prepend the following command 
+If boost is installed in `$ROOT/boost/install`, then prepend the cmake commands below 
 with `Boost_DIR=$ROOT/boost/install` and also execute:
 
 ```
@@ -147,7 +147,7 @@ To configure build without NGS:
 To configure build with NGS support:
 
 ```
-> NGS_ROOT=$ROOT/NGS/ngs VDB_ROOT=$ROOT/NGS/vdb cmake -DENABLE_NGS=Y -DCMAKE_BUILD_TYPE=Release ../ReadFinder/src
+> NGS_ROOT=$ROOT/NGS/ngs VDB_ROOT=$ROOT/NGS/vdb cmake -DENABLE_NGS=static -DCMAKE_BUILD_TYPE=Release ../ReadFinder/src
 ```
 
 After build is configured, run `make`.
@@ -334,7 +334,7 @@ Default: `0`
 Minimum number of bases covered by matches within a diagonal
 band (see `--max-diag-delta` option) needed to select the
 sequence as matching. A sequence is selected if it satisfies
-either `--covered-bases` constraint, or `--coverage-ratio`
+both `--covered-bases` constraint and `--coverage-ratio`
 constraint.
 
 -----------------------------------
@@ -346,7 +346,7 @@ The value must be between `0.0` and `1.0`. The minimum
 proportion of bases covered by matches within a diagonal
 band (see `--max-diag-delta` option) needed to select the
 sequence as matching. A sequence is selected if it satisfies
-either `--covered-bases` constraint, or `--coverage-ratio`
+both `--covered-bases` constraint and `--coverage-ratio`
 constraint.
 
 -----------------------------------
@@ -401,7 +401,7 @@ To create word bitset needed for read pre-screening:
 This adds another file `ref.ws`.
 
 To match SRA accession SRR6399765 against `ref` database in batches of 100M reads,
-pre-screening the reads, matching at least 40 bp or 60% of the mate sequence,
+pre-screening the reads, matching at least 40 bp and 60% of the mate sequence,
 selecting only matching mates, and sending results to SRR6399765.out.fa:
 
 ```readfinder -A search -d ref -F sra -i SRR6399765 -m --prescreen -b 100000000 -B 40 -c 0.6 -o SRR6399765.out.fa```
