@@ -805,6 +805,57 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
         M_INFO( logger, n_rpos << " repeat positions" );
     }
 
+    // create a histogram of logs of nmer frequencies
+    //
+    size_t fhist[65];
+    std::fill( fhist, fhist + 65, 0 );
+
+    if( pij_data.size() > 0 )
+    {
+        StopWatch w( logger, "building nmer frequency histogram" );
+        CProgress p( "building frequency histogram", "anchors",
+                     ctx_->progress_flags_ );
+        auto ph( p.GetTop() );
+        ph.SetTotal( IDXMAP_SIZE - 1 );
+        p.Start();
+
+        for( size_t anchor( 0 ); anchor < IDXMAP_SIZE - 1; ++anchor )
+        {
+            auto * ib( begin( anchor ) ),
+                 * ie( end( anchor ) ),
+                 * iie( ib );
+
+            for( ; ib != ie; ib = iie )
+            {
+                uint32_t w( ib->wd.w.word );
+                for( iie = ib; iie != ie && iie->wd.w.word == w; ++iie );
+                uint64_t f( iie - ib );
+                assert( f > 0ULL );
+                uint64_t i( 0ULL );
+
+                for( uint64_t j( 1ULL ); i < 64ULL; ++i, j <<= 1 )
+                {
+                    if( f <= j )
+                    {
+                        ++fhist[i];
+                        break;
+                    }
+                }
+
+                if( i == 64 ) ++fhist[64];
+            }
+
+            ph.Increment();
+        }
+
+        p.Stop();
+
+        for( size_t i( 0 ); i < 65; ++i )
+        {
+            M_INFO( logger, "freq: " << i << "; count: " << fhist[i] );
+        }
+    }
+
     return *this;
 }
 

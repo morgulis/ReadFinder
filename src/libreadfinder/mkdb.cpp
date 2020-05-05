@@ -333,11 +333,19 @@ inline void WordSource::operator++()
 
 //==============================================================================
 //------------------------------------------------------------------------------
-void CreateWorkSet( CMkDBOptions const & opts, CRefData const & refs )
+void CreateWorkSet(
+    CommonCtxP ctx, CMkDBOptions const & opts, CRefData const & refs )
 {
     static char const * WS_EXT = ".ws";
     static size_t const WORD_SET_SIZE = 1ULL<<32;
     boost::dynamic_bitset< TWord > ws( WORD_SET_SIZE );
+    M_INFO( ctx->logger_, "creating work set" );
+
+    CProgress p( "building word set", "reference sequences",
+                 ctx->progress_flags_ );
+    auto ph( p.GetTop() );
+    ph.SetTotal( refs.GetSize() );
+    p.Start();
 
     for( size_t i( 0 ), ie( refs.GetSize() ); i < ie; ++i )
     {
@@ -356,8 +364,11 @@ void CreateWorkSet( CMkDBOptions const & opts, CRefData const & refs )
                 ws.set( rsw );
             }
         }
+
+        ph.Increment();
     }
 
+    p.Stop();
     std::vector< TWord > blocks( ws.num_blocks(), 0 );
     boost::to_block_range( ws, blocks.begin() );
     auto fname( opts.output + WS_EXT );
@@ -380,12 +391,14 @@ void MakeDB( CMkDBOptions const & opts )
 {
     CommonCtxP ctx( new CCommonContext( opts ) );
     CReadFinderHitsDBFactory( opts, ctx ).Run();
+    M_INFO( ctx->logger_, "sequence data generated" );
 
     if( opts.mkidx || opts.mkws )
     {
         CRefData refs( opts.output );
         refs.LoadAll();
-        if( opts.mkws ) CreateWorkSet( opts, refs );
+        M_INFO( ctx->logger_, "sequence data loaded" );
+        if( opts.mkws ) CreateWorkSet( ctx, opts, refs );
 
         if( opts.mkidx )
         {
