@@ -138,6 +138,10 @@ inline void CReadData::AppendData(
         mate.data[2 - strand] = orig_data_sz + 3*WUNITS + mate.len;
         ++n_seq_;
     }
+    else
+    {
+        M_THROW( "duplicate mate for the same read " << oid );
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -156,21 +160,30 @@ auto CReadData::AddSeqData(
     strcpy( &ids_[0] + sz, id.c_str() );
     IdHandle key{ sz, 0 };
     auto i( idset_->find( key ) );
+    OrdId oid( idset_->size() );
 
     if( i == idset_->end() )
     {
-        key.ordid = idset_->size();
+        key.ordid = oid;
         i = idset_->insert( key ).first;
         reads_.push_back( Read( key.ordid ) );
         reads_.back().id_off_ = sz;
         reads_.back().read_is_paired_ = read_is_paired;
     }
+    else if( !read_is_paired )
+    {
+        // M_WARN( logger_, "duplicate id: " << id );
+        reads_.push_back( Read( oid ) );
+        reads_.back().id_off_ = sz;
+        reads_.back().read_is_paired_ = read_is_paired;
+    }
     else
     {
+        oid = i->ordid;
         ids_.resize( sz );
     }
 
-    AppendData( i->ordid, iupac, strand, FromMate( mate ) );
+    AppendData( oid, iupac, strand, FromMate( mate ) );
     return i->ordid;
 }
 
@@ -270,7 +283,8 @@ CReadData::CReadData(
         boost::dynamic_bitset< TWord > const * ws,
         size_t batch_size, int progress_flags
     )
-    : CReadData()
+    : logger_( logger ),
+      mask_cache_( 1 + std::numeric_limits< TReadLen >::max(), -1 )
 {
     static size_t const MAX_READ_LEN = 32*1024;
 
