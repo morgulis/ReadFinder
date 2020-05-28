@@ -53,13 +53,15 @@ class CFastaInput : public CSeqInput
 public:
 
     CFastaInput( std::string const & fname, bool compressed,
-                 size_t start = 0, ssize_t n_seq = -1 );
+                 size_t start, ssize_t n_seq, bool paired = false );
     virtual ~CFastaInput() override {}
 
     virtual bool Next() override;
     virtual SeqData const & GetSeqData() const override;
 
 private:
+
+    bool NextPriv( size_t col );
 
     std::shared_ptr< CTextInput > in_;
     SeqData sd_;

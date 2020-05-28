@@ -75,7 +75,8 @@ CSearchContext::CSearchContext( CSearchOptions const & opts )
     seqs.reset( MkSeqInput( fnames,
                             opts.input_format,
                             opts.start_read,
-                            opts.end_read - opts.start_read ) );
+                            opts.end_read - opts.start_read,
+                            opts.force_paired ) );
     refs.reset( new CRefData( opts.db_name ) );
     refs->LoadAll();
 
