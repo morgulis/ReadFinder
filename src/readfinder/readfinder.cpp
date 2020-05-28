@@ -268,6 +268,9 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
         ( "per-mate-marks,m",
           po::bool_switch( &search_opts.per_mate_marks ),
           "reporting on a per-mate basis" )
+        ( "paired",
+          po::bool_switch( &search_opts.force_paired ),
+          "interpret single fasta ot fastq input as interleaved paired reads" )
         ( "prescreen",
           po::bool_switch( &search_opts.pre_screen ),
           "pre-screen reads for presense of words from reference" );

@@ -1593,7 +1593,7 @@ void CFastSeeds::Run()
 
     if( !ctx.db_name.empty() )
     {
-        try { fsidx_.Load( ctx.db_name, prescreen_ ); }
+        try { fsidx_.Load( ctx.db_name ); }
         catch( std::exception const & e )
         {
             M_INFO( ctx.logger_, "index load failed: " );

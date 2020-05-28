@@ -65,37 +65,6 @@ private:
 };
 
 //------------------------------------------------------------------------------
-namespace
-{
-
-inline std::string CombineIds( std::string const & id1, std::string const id2 )
-{
-    if( id1.size() == id2.size() )
-    {
-        size_t i( 0 );
-        for( ; i < id1.size() && id1[i] == id2[i]; ++i );
-
-        if( i == id1.size() )
-        {
-            return id1;
-        }
-
-        if( i > 0 &&
-            i == id1.size() - 1 &&
-            id1[i] == '1' &&
-            id2[i] == '2' &&
-            (id1[i-1] == '.' || id1[i-1] == '_' || id1[i-1] == '/') )
-        {
-            return id1.substr( 0, i - 1 );
-        }
-    }
-
-    M_THROW( "id mismatch: " << id1 << " and " << id2 );
-}
-
-}
-
-//------------------------------------------------------------------------------
 template< typename T_SeqInput_1, typename T_SeqInput_2 >
 inline CPairedInput< T_SeqInput_1, T_SeqInput_2 > * CreatePairedInput(
         T_SeqInput_1 * seq_1, T_SeqInput_2 * seq_2 )

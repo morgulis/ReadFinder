@@ -47,7 +47,7 @@ SEQ_NS_BEGIN
 
 //------------------------------------------------------------------------------
 CSeqInput * MkSeqInput( std::vector< std::string > const & fnames, int fmt,
-                        size_t start, ssize_t n_seq )
+                        size_t start, ssize_t n_seq, bool paired )
 {
     bool compressed( fmt == CSeqInput::ZFASTA || fmt == CSeqInput::ZFASTQ );
 
@@ -55,12 +55,14 @@ CSeqInput * MkSeqInput( std::vector< std::string > const & fnames, int fmt,
     {
         if( fmt == CSeqInput::FASTA || fmt == CSeqInput::ZFASTA )
         {
-            return new CFastaInput( fnames[0], compressed, start, n_seq );
+            return new CFastaInput(
+                fnames[0], compressed, start, n_seq, paired );
         }
 
         if( fmt == CSeqInput::FASTQ || fmt == CSeqInput::ZFASTQ )
         {
-            return new CFastqInput( fnames[0], compressed, start, n_seq );
+            return new CFastqInput(
+                fnames[0], compressed, start, n_seq, paired );
         }
 
 #ifdef USE_NGS
