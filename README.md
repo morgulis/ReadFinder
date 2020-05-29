@@ -358,7 +358,7 @@ Matches used for `--covered-bases` and `--coverage-ratio` tests
 must on diagonals that are at most this far from each other.
 
 -----------------------------------
-```--prescreen```
+```--paired```
 
 This flag should be used to interpret a single fasta or fastq
 file as containing paired reads. The input file should contain
