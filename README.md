@@ -358,6 +358,17 @@ Matches used for `--covered-bases` and `--coverage-ratio` tests
 must on diagonals that are at most this far from each other.
 
 -----------------------------------
+```--prescreen```
+
+This flag should be used to interpret a single fasta or fastq
+file as containing paired reads. The input file should contain
+even number of sequences. Consecutive pairs of sequences constitute
+a paired read. The ids of the read mates must be the same or
+differ only in the suffix: ".1" for the first mate, ".2" for the
+second mate. This flag has no effect for sra input type or when
+two input files are used.
+
+-----------------------------------
 ```--per-mate-marks [-m]```
 
 By default, if a mate in a paired read is matched, both mate
