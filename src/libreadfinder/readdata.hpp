@@ -62,7 +62,6 @@ public:
 
     struct Read;
 
-    CReadData();
     CReadData( CLogger & logger,
                CSeqInput & seqs,
                boost::dynamic_bitset< TWord > const * ws,
@@ -151,6 +150,7 @@ private:
 
     std::unique_ptr< IdSet > idset_;
 
+    TOOLS_NS::CLogger & logger_;
     Ids ids_;
     ReadData reads_;
     SeqBuf seq_data_,
@@ -237,11 +237,6 @@ inline auto CReadData::Reads::operator++() -> Reads &
 //==============================================================================
 // IMPLEMENTATION
 //==============================================================================
-inline CReadData::CReadData()
-    : mask_cache_( 1 + std::numeric_limits< TReadLen >::max(), -1 )
-{
-}
-
 //------------------------------------------------------------------------------
 inline auto CReadData::begin() -> Reads
 {

@@ -40,17 +40,39 @@ SEQ_NS_BEGIN
 //------------------------------------------------------------------------------
 CFastaInput::CFastaInput(
         std::string const & fname, bool compressed,
-        size_t start, ssize_t n_seq )
+        size_t start, ssize_t n_seq, bool paired )
     : in_( (compressed || CheckCompressed( fname )) ?
            (CTextInput *)(new CGZipInput( fname )) :
            (CTextInput *)(new CTextFileInput( fname )) ),
-      sd_( 1 ), n_left_( n_seq )
+      sd_( paired ? 2 : 1 ), n_left_( n_seq )
 {
     for( ; start > 0 && Next(); --start );
 }
 
 //------------------------------------------------------------------------------
-bool CFastaInput::Next() 
+bool CFastaInput::Next()
+{
+    bool res( NextPriv( 0 ) );
+
+    if( res )
+    {
+        if( sd_.GetNCols() > 1 )
+        {
+            if( !NextPriv( 1 ) )
+            {
+                M_THROW( in_->GetId() << "odd number of sequences" );
+            }
+        }
+
+        --n_left_;
+        return true;
+    }
+
+    return false;
+}
+
+//------------------------------------------------------------------------------
+bool CFastaInput::NextPriv( size_t col ) 
 {
     CTextInput & in( *in_ );
 
@@ -75,6 +97,7 @@ bool CFastaInput::Next()
                  ": expected defline at line " << in.GetLineNo() );
     }
 
+    if( col == 0 )
     {
         auto pos( line_.find_first_of( " \t" ) );
 
@@ -86,6 +109,14 @@ bool CFastaInput::Next()
         {
             sd_.SetId( line_.substr( 1, pos - 1 ) );
         }
+    }
+    else
+    {
+        auto pos( line_.find_first_of( " \t" ) );
+        std::string id(
+            pos == std::string::npos
+            ? line_.substr( 1 ) : line_.substr( 1, pos - 1 ) );
+        sd_.SetId( CombineIds( sd_.GetId(), id ) );
     }
 
     std::vector< char > data;
@@ -109,8 +140,7 @@ bool CFastaInput::Next()
         }
     }
 
-    sd_.SetData( 0, std::string( data.begin(), data.end() ) );
-    --n_left_;
+    sd_.SetData( col, std::string( data.begin(), data.end() ) );
     return true;
 }
 

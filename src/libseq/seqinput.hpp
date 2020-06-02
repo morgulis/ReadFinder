@@ -223,9 +223,37 @@ inline auto CSeqInput::Iterate() -> Iterator
 }
 
 //==============================================================================
+//------------------------------------------------------------------------------
 CSeqInput * MkSeqInput( 
         std::vector< std::string > const & fnames, int fmt,
-        size_t start = 0, ssize_t n_seq = -1 );
+        size_t start, ssize_t n_seq, bool paired = false );
+
+//------------------------------------------------------------------------------
+inline std::string CombineIds( std::string const & id1, std::string const id2 )
+{
+    if( id1.size() == id2.size() )
+    {
+        size_t i( 0 );
+        for( ; i < id1.size() && id1[i] == id2[i]; ++i );
+
+        if( i == id1.size() )
+        {
+            return id1;
+        }
+
+        if( i > 0 &&
+            i == id1.size() - 1 &&
+            id1[i] == '1' &&
+            id2[i] == '2' &&
+            (id1[i-1] == '.' || id1[i-1] == '_' || id1[i-1] == '/') )
+        {
+            return id1.substr( 0, i - 1 );
+        }
+    }
+
+    M_THROW( "id mismatch: " << id1 << " and " << id2 );
+}
+
 
 SEQ_NS_END
 

@@ -157,6 +157,7 @@ struct CSearchOptions : public CommonOptions
 
     bool per_mate_marks = false; ///< Report individual mates in seeder.
     bool pre_screen = false;     ///< Pre-screen reads.
+    bool force_paired = false;   ///< Force paired for single fasta/fastq input.
 
     friend std::ostream & operator<<(
             std::ostream & os, CSearchOptions const & x )
