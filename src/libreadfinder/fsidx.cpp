@@ -42,6 +42,7 @@ READFINDER_NS_BEGIN
 namespace {
     static char const * IDXMAP_EXT = ".idm";
     static char const * IDX_EXT = ".idx";
+    static char const * LFM_EXT = ".lfm";
 }
 
 //==============================================================================
@@ -509,7 +510,7 @@ void CFastSeedsIndex::IndexChunk::Unload( CCommonContext & ctx )
 
 //==============================================================================
 //------------------------------------------------------------------------------
-CFastSeedsIndex::CFastSeedsIndex( CommonCtxP ctx, CRefData const & refs )
+CFastSeedsIndex::CFastSeedsIndex( CCommonContext & ctx, CRefData const & refs )
     : ctx_( ctx ), refs_( refs )
 {
 }
@@ -517,7 +518,7 @@ CFastSeedsIndex::CFastSeedsIndex( CommonCtxP ctx, CRefData const & refs )
 //------------------------------------------------------------------------------
 void CFastSeedsIndex::SetUpChunks( bool allocate )
 {
-    auto & logger( ctx_->logger_ );
+    auto & logger( ctx_.logger_ );
 
     //
     // chunk data contains (in order) the first anchor, one past
@@ -567,14 +568,14 @@ void CFastSeedsIndex::SetUpChunks( bool allocate )
     {
         if( allocate )
         {
-            idx_.emplace_back( *ctx_, idxmap_,
+            idx_.emplace_back( ctx_, idxmap_,
                                std::get< 0 >( cd ),
                                std::get< 1 >( cd ),
                                std::get< 2 >( cd ) );
         }
         else
         {
-            idx_.emplace_back( *ctx_, idxmap_,
+            idx_.emplace_back( ctx_, idxmap_,
                                std::get< 0 >( cd ),
                                std::get< 1 >( cd ) );
         }
@@ -586,7 +587,14 @@ void CFastSeedsIndex::SetUpChunks( bool allocate )
 //------------------------------------------------------------------------------
 CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
 {
-    auto & logger( ctx_->logger_ );
+    auto & logger( ctx_.logger_ );
+
+    if( keep_loaded_ )
+    {
+        M_INFO( logger, "reference index is already created" )
+        return *this;
+    }
+
     M_INFO( logger, "generating reference index" );
     ssize_t n_job_pos( 0 );
     std::vector< PopulateIndexJobData > pij_data;
@@ -664,7 +672,7 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
         StopWatch w( logger );
         size_t job_idx( 0 );
         CProgress p( "counting reference words", "tasks",
-                     ctx_->progress_flags_ );
+                     ctx_.progress_flags_ );
         auto ph( p.GetTop().Split( n_threads ) );
         CTaskArray< IndexNMerCountingJob > jobs(
                 n_threads, *this, pij_data, job_idx, ph );
@@ -706,7 +714,7 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
         StopWatch w( logger );
         size_t job_idx( 0 );
         CProgress p( "populating reference index", "tasks",
-                     ctx_->progress_flags_ );
+                     ctx_.progress_flags_ );
         auto ph( p.GetTop().Split( n_threads ) );
         CTaskArray< PopulateIndexJob > jobs(
                 n_threads, *this, pij_data, job_idx, ph );
@@ -723,7 +731,7 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
         StopWatch w( logger );
         std::atomic< uint32_t > job_idx( 0 );
         CProgress p( "sorting reference index", "anchors",
-                     ctx_->progress_flags_ );
+                     ctx_.progress_flags_ );
         auto ph( p.GetTop() );
         ph.SetTotal( IDXMAP_SIZE - 1 );
         CTaskArray< SortIndexJob > jobs( n_threads, *this, job_idx, ph );
@@ -745,7 +753,7 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
                n_erepeats( 0 ),
                n_erpos( 0 );
         CProgress p( "identifying repeats", "anchors",
-                     ctx_->progress_flags_ );
+                     ctx_.progress_flags_ );
         auto ph( p.GetTop() );
         ph.SetTotal( IDXMAP_SIZE - 1 );
         p.Start();
@@ -809,12 +817,13 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
     //
     size_t fhist[65];
     std::fill( fhist, fhist + 65, 0 );
+    size_t cutoff_idx( 65 );
 
     if( pij_data.size() > 0 )
     {
         StopWatch w( logger, "building nmer frequency histogram" );
         CProgress p( "building frequency histogram", "anchors",
-                     ctx_->progress_flags_ );
+                     ctx_.progress_flags_ );
         auto ph( p.GetTop() );
         ph.SetTotal( IDXMAP_SIZE - 1 );
         p.Start();
@@ -854,15 +863,93 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
         {
             M_INFO( logger, "freq: " << i << "; count: " << fhist[i] );
         }
+
+        constexpr size_t const NUM_WORDS_CUTOFF = 128*1024*1024ULL;
+
+        for( size_t num_words( 0 ); cutoff_idx > 0; )
+        {
+            if( num_words + fhist[--cutoff_idx] > NUM_WORDS_CUTOFF ) break;
+            num_words += fhist[cutoff_idx];
+        }
+
+        M_INFO( logger, "cutoff frequency is " << cutoff_idx );
     }
 
+    // create the log frequency table for repeated words
+    //
+    if( pij_data.size() > 0 )
+    {
+        StopWatch w( logger, "building nmer log frequency table" );
+        CProgress p( "building log frequency table", "anchors",
+                     ctx_.progress_flags_ );
+        auto ph( p.GetTop() );
+        ph.SetTotal( IDXMAP_SIZE - 1 );
+        p.Start();
+        FreqTableEntry fte;
+
+        for( size_t anchor( 0 ); anchor < IDXMAP_SIZE - 1; ++anchor )
+        {
+            fte.anchor = anchor;
+            auto * ib( begin( anchor ) ),
+                 * ie( end( anchor ) ),
+                 * iie( ib );
+
+            for( ; ib != ie; ib = iie )
+            {
+                uint32_t w( ib->wd.w.word );
+                for( iie = ib; iie != ie && iie->wd.w.word == w; ++iie );
+                uint64_t f( iie - ib );
+                assert( f > 0ULL );
+                uint64_t i( 0ULL );
+
+                for( uint64_t j( 1ULL ); i < 64ULL; ++i, j <<= 1 )
+                {
+                    if( f <= j ) break;
+                }
+
+                if( i > cutoff_idx )
+                {
+                    fte.word = w;
+                    fte.freq = i;
+                    freq_table_.push_back( fte );
+                }
+            }
+
+            ph.Increment();
+        }
+
+        std::sort( freq_table_.begin(), freq_table_.end() );
+        p.Stop();
+        M_INFO( logger, freq_table_.size() << " entries in frequency table" );
+    }
+
+    keep_loaded_ = true;
     return *this;
 }
 
 //------------------------------------------------------------------------------
 CFastSeedsIndex & CFastSeedsIndex::Save( std::string const & basename )
 {
-    auto & logger( ctx_->logger_ );
+    auto & logger( ctx_.logger_ );
+
+    {
+        auto fname( basename + LFM_EXT );
+        std::ofstream ofs( fname, std::ios_base::binary );
+
+        if( !ofs )
+        {
+            M_THROW( "error opening frequency map file " <<
+                     fname << " for writing" );
+        }
+
+        ofs.exceptions( std::ios::badbit );
+        uint64_t sz( freq_table_.size() );
+        ofs.write( reinterpret_cast< char const * >( &sz ), sizeof( sz ) );
+        ofs.write(
+            reinterpret_cast< char const * >( freq_table_.data() ),
+            sz*sizeof( FreqTableEntry ) );
+        M_INFO( logger, "saved log frequency data to " << fname );
+    }
 
     {
         auto fname( basename + IDXMAP_EXT );
@@ -874,6 +961,7 @@ CFastSeedsIndex & CFastSeedsIndex::Save( std::string const & basename )
                      fname << " for writing" );
         }
 
+        ofs.exceptions( std::ios::badbit );
         ofs.write( (char const *)&idxmap_[0],
                    IDXMAP_SIZE*sizeof( uint32_t ) );
 
@@ -894,8 +982,9 @@ CFastSeedsIndex & CFastSeedsIndex::Save( std::string const & basename )
             M_THROW( "error opening index file " << fname << " for writing" );
         }
 
+        ofs.exceptions( std::ios::badbit );
         CProgress p( "saving reference index", "chunks",
-                     ctx_->progress_flags_ );
+                     ctx_.progress_flags_ );
         auto ph( p.GetTop() );
         ph.SetTotal( idx_.size() );
         p.Start();
@@ -919,27 +1008,14 @@ CFastSeedsIndex & CFastSeedsIndex::Save( std::string const & basename )
 CFastSeedsIndex & CFastSeedsIndex::Load(
         std::string const & basename, bool load_chunks )
 {
-    /*
-    // load word set for pre-screening reads
-    if( load_ws )
+    auto & logger( ctx_.logger_ );
+
+    if( keep_loaded_ )
     {
-        std::vector< TWord > blocks( word_set_.num_blocks(), 0 );
-        auto fname( basename + WS_EXT );
-        std::ifstream ifs( fname, std::ios_base::binary );
-
-        if( !ifs )
-        {
-            M_THROW( "error opening word set file " << fname <<
-                     " for reading" );
-        }
-
-        ifs.exceptions( std::ios_base::badbit );
-        ifs.read( (char *)blocks.data(), sizeof( TWord )*blocks.size() );
-        boost::from_block_range( blocks.begin(), blocks.end(), word_set_ );
-        M_INFO( ctx_->logger_, "loaded word set from " << fname );
+        M_INFO( logger, "reference index is already loaded" )
+        return *this;
     }
-    */
-    
+
     // create reference offset data
     {
         ssize_t n_job_pos( 0 );
@@ -974,7 +1050,7 @@ CFastSeedsIndex & CFastSeedsIndex::Load(
             M_THROW( "error reading from index map file " << fname );
         }
 
-        M_INFO( ctx_->logger_, "loaded index map from " << fname );
+        M_INFO( ctx_.logger_, "loaded index map from " << fname );
     }
 
     SetUpChunks( false );
@@ -997,7 +1073,35 @@ CFastSeedsIndex & CFastSeedsIndex::Load(
                 chunk.Load( index_stream_ );
             }
 
-            M_INFO( ctx_->logger_, "loaded index data from " << fname );
+            M_INFO( ctx_.logger_, "loaded index data from " << fname );
+        }
+    }
+
+    // load frequency table
+    {
+        auto fname( basename + LFM_EXT );
+        std::ifstream ifs( fname, std::ios_base::binary );
+
+        if( !ifs )
+        {
+            M_INFO(
+                ctx_.logger_,
+                "error opening log frequency table file " << fname
+                << " for reading; dynamic batch sizing will be disabled" );
+        }
+        else
+        {
+            ifs.exceptions( std::ios_base::badbit );
+            uint64_t sz;
+            ifs.read( reinterpret_cast< char * >( &sz ), sizeof( sz ) );
+            freq_table_.clear();
+            freq_table_.resize( sz );
+            ifs.read(
+                reinterpret_cast< char * >( freq_table_.data() ),
+                sizeof( FreqTableEntry )*sz );
+            ctx_.dynamic_batches_ = true;
+            M_INFO(
+                ctx_.logger_, "loaded word frequency table from " << fname );
         }
     }
 

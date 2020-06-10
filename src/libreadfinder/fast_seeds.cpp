@@ -45,11 +45,8 @@ READFINDER_NS_BEGIN
 //------------------------------------------------------------------------------
 CFastSeeds::CFastSeeds( CBatch & bctx )
     : bctx_( bctx ),
-      fsidx_( CommonCtxP( new CCommonContext(
-                      static_cast< CCommonContext & >( 
-                          bctx.GetSearchCtx() ) ) ),
-              *bctx.GetSearchCtx().refs ),
-      anchor_use_map_( ANCHOR_TBL_SIZE, false )// ,
+      fsidx_( *bctx.GetSearchCtx().fsidx ),
+      anchor_use_map_( ANCHOR_TBL_SIZE, false )
 {
     bctx_.GetSearchCtx().refs->LoadAll();
     prescreen_ = bctx_.GetSearchCtx().pre_screen;
@@ -380,7 +377,7 @@ private:
 //------------------------------------------------------------------------------
 inline CFastSeeds::HashMaskSource::HashMaskSource(
         TWord const * mask_data, TSeqLen len, TSeqOff off )
-    : mask_data_( mask_data ), len_( off + len ), off_( off )// ,
+    : mask_data_( mask_data ), len_( off + len ), off_( off )
 {
     if( off_ >= len )
     {

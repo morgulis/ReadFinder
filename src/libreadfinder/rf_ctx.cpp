@@ -99,6 +99,8 @@ CSearchContext::CSearchContext( CSearchOptions const & opts )
         ifs.read( (char *)blocks.data(), sizeof( TWord )*blocks.size() );
         boost::from_block_range( blocks.begin(), blocks.end(), ws );
     }
+
+    fsidx.reset( new CFastSeedsIndex( *this, *refs ) );
 }
 
 //------------------------------------------------------------------------------

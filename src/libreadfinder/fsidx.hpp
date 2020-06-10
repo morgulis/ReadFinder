@@ -30,7 +30,7 @@
 #ifndef LIBREADFINDER_FSIDX_HPP
 #define LIBREADFINDER_FSIDX_HPP
 
-#include <libreadfinder/rf_ctx.hpp>
+#include <libreadfinder/common_ctx.hpp>
 #include <libreadfinder/refdata.hpp>
 #include <libreadfinder/fsdefs.hpp>
 #include <libreadfinder/defs.hpp>
@@ -156,7 +156,7 @@ private:
 
 public:
 
-    CFastSeedsIndex( CommonCtxP ctx, CRefData const & refs );
+    CFastSeedsIndex( CCommonContext & ctx, CRefData const & refs );
 
     CFastSeedsIndex & Create( size_t n_threads );
     CFastSeedsIndex & Save( std::string const & basename );
@@ -165,9 +165,13 @@ public:
 
     void Unload()
     {
-        Index().swap( idx_ );
-        IndexMap().swap( idxmap_ );
-        index_stream_.close();
+        if( !keep_loaded_ )
+        {
+            Index().swap( idx_ );
+            IndexMap().swap( idxmap_ );
+            index_stream_.close();
+            M_INFO( ctx_.logger_, "Index data unloaded" );
+        }
     }
 
     IndexEntry * begin( uint32_t anchor )
@@ -224,20 +228,27 @@ public:
     void Unload( size_t chunk )
     {
         assert( chunk < idx_.size() );
-        idx_[chunk].Unload( *ctx_ );
+
+        if( !keep_loaded_ )
+        {
+            idx_[chunk].Unload( ctx_ );
+            M_INFO( ctx_.logger_, "chunk " << chunk << " is unloaded" );
+        }
     }
 
 private:
 
     void SetUpChunks( bool allocate = true );
 
-    CommonCtxP ctx_;
+    CCommonContext & ctx_;
     CRefData const & refs_;
     RefOffsets roff_;
     IndexMap idxmap_;
     ChunkMap chunk_map_;
     Index idx_;
     std::ifstream index_stream_;
+    std::vector< FreqTableEntry > freq_table_;
+    bool keep_loaded_ = false;
 };
 
 READFINDER_NS_END

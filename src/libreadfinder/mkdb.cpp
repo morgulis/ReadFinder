@@ -402,7 +402,7 @@ void MakeDB( CMkDBOptions const & opts )
 
         if( opts.mkidx )
         {
-            CFastSeedsIndex( ctx, refs )
+            CFastSeedsIndex( *ctx, refs )
                 .Create( opts.n_threads )
                 .Save( opts.output );
         }

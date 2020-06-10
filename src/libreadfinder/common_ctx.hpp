@@ -27,65 +27,27 @@
  *
  */
 
-#ifndef LIBREADFINDER_RF_CTX_HPP
-#define LIBREADFINDER_RF_CTX_HPP
+#ifndef LIBREADFINDER_COMMON_CTX_HPP
+#define LIBREADFINDER_COMMON_CTX_HPP
 
-#include <functional>
-#include <memory>
-
-#include <libreadfinder/common_ctx.hpp>
-#include <libreadfinder/fsidx.hpp>
 #include <libreadfinder/rf_options.hpp>
-#include <libreadfinder/refdata.hpp>
 #include <libreadfinder/defs.hpp>
 
 #include <libtools/logger.hpp>
-#include <libtools/progress.hpp>
-
-#include <boost/dynamic_bitset.hpp>
 
 READFINDER_NS_BEGIN
 
 //==============================================================================
-struct CSearchContext : public CCommonContext, public CSearchOptions
+struct CCommonContext
 {
-private:
-
-    typedef std::unique_ptr<
-        std::ostream,
-        std::function< void( std::ostream * ) > > OutStream;
-
-public:
-
-    CSearchContext( CSearchOptions const & opts );
-
-    void Check();
-    std::ostream & GetOutStream() { return *osp; }
-
-    void ResetOutStream( std::string const & name )
-    {
-        OutStream( new std::ofstream( name.c_str() ),
-                   []( std::ostream * os ){ delete os; } ).swap( osp );
-    }
-
-    void ResetOutStream( std::ostream & os = std::cout )
-    {
-        OutStream( &os, []( std::ostream * osp ){} ).swap( osp );
-    }
-
-    std::unique_ptr< CSeqInput > seqs;
-    std::unique_ptr< CRefData > refs;
-    std::unique_ptr< CFastSeedsIndex > fsidx;
-    boost::dynamic_bitset< TWord > ws;
-    size_t n_reads = 0,
-           n_mapped_reads = 0;
-
-private:
-
-    OutStream osp;
+    CCommonContext( CommonOptions const & opts );
+    CLogger logger_;
+    int progress_flags_ = 0;
+    bool dynamic_batches_ = false;
 };
+
+typedef std::shared_ptr< CCommonContext > CommonCtxP;
 
 READFINDER_NS_END
 
 #endif
-
