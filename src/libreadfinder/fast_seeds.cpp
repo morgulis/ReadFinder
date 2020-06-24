@@ -1225,7 +1225,7 @@ inline void CFastSeeds::ComputeSeeds()
 
     // free memory used by reference and read index
     //
-    fsidx_.Unload();
+    // fsidx_.Unload();
     { WordTable t; wt_.swap( t ); }
     { WordMap t; t.swap( wmap_ ); }
 
@@ -1586,6 +1586,7 @@ void CFastSeeds::Run()
 {
     CreateWordTable();
 
+    /*
     auto & ctx( bctx_.GetSearchCtx() );
 
     if( !ctx.db_name.empty() )
@@ -1602,6 +1603,7 @@ void CFastSeeds::Run()
     {
         fsidx_.Create( ctx.n_threads );
     }
+    */
 
     ComputeSeeds();
 }

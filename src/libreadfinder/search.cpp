@@ -40,8 +40,25 @@ READFINDER_NS_BEGIN
 void SearchSeeds( CSearchOptions const & opts )
 {
     CSearchContext ctx( opts );
+
+    if( !ctx.db_name.empty() )
+    {
+        try { ctx.fsidx->Load( ctx.db_name ); }
+        catch( std::exception const & e )
+        {
+            M_INFO( ctx.logger_, "index load failed: " );
+            M_INFO( ctx.logger_, e.what() );
+            ctx.fsidx->Create( ctx.n_threads );
+        }
+    }
+    else
+    {
+        ctx.fsidx->Create( ctx.n_threads );
+    }
+
     size_t batch_num( 0 );
     while( MakeBatch( ctx, batch_num++ )->RunSeeder() );
+    ctx.fsidx->Unload();
     M_FORCE_LOG( ctx.logger_, "total reads: " << ctx.n_reads );
     M_FORCE_LOG( ctx.logger_,
                  "failed reads: " << ctx.seqs->GetNumFailedReads() );
