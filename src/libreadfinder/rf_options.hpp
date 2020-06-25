@@ -141,6 +141,8 @@ struct CSearchOptions : public CommonOptions
            start_read = 0,                                   ///< First read.
            end_read = std::numeric_limits< ssize_t >::max(); ///< Last read.
 
+    size_t max_mem = 0ULL;  ///< Max memory to use in megabytes.
+
     /** Seeds that extend to  within this many bases from the start or end
         of the mate (excluding A-tails and T-heads) are considered for
         generating flanking regions for short exon search.

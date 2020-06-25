@@ -1585,26 +1585,6 @@ inline void CFastSeeds::UpdateAnchorUseMap( uint32_t wa )
 void CFastSeeds::Run()
 {
     CreateWordTable();
-
-    /*
-    auto & ctx( bctx_.GetSearchCtx() );
-
-    if( !ctx.db_name.empty() )
-    {
-        try { fsidx_.Load( ctx.db_name ); }
-        catch( std::exception const & e )
-        {
-            M_INFO( ctx.logger_, "index load failed: " );
-            M_INFO( ctx.logger_, e.what() );
-            fsidx_.Create( ctx.n_threads );
-        }
-    }
-    else
-    {
-        fsidx_.Create( ctx.n_threads );
-    }
-    */
-
     ComputeSeeds();
 }
 

@@ -77,6 +77,7 @@ public:
     std::unique_ptr< CRefData > refs;
     std::unique_ptr< CFastSeedsIndex > fsidx;
     boost::dynamic_bitset< TWord > ws;
+    size_t max_mem_bytes = 0;
     size_t n_reads = 0,
            n_mapped_reads = 0;
 
