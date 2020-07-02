@@ -527,6 +527,7 @@ void CFastSeedsIndex::SetUpChunks( bool allocate )
     typedef std::tuple< size_t, size_t, size_t > ChunkData;
     std::vector< ChunkData > chunk_data;
     chunk_map_.resize( IDXMAP_SIZE, 0 );
+    used_mem_ += IDXMAP_SIZE*sizeof( uint32_t );
     size_t j( 0 ),
            s( 0 );
 
@@ -572,6 +573,7 @@ void CFastSeedsIndex::SetUpChunks( bool allocate )
                                std::get< 0 >( cd ),
                                std::get< 1 >( cd ),
                                std::get< 2 >( cd ) );
+            used_mem_ += std::get< 2 >( cd );
         }
         else
         {
@@ -579,6 +581,8 @@ void CFastSeedsIndex::SetUpChunks( bool allocate )
                                std::get< 0 >( cd ),
                                std::get< 1 >( cd ) );
         }
+
+        used_mem_ += sizeof( IndexChunk );
     }
 
     M_INFO( logger, "initialized index chunk data" );
@@ -606,6 +610,7 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
     {
         StopWatch w( logger );
         roff_.resize( refs_.GetSize() + 1 );
+        used_mem_ += roff_.size()*sizeof( uint32_t );
 
         for( size_t i( 0 ), ie( refs_.GetSize() ); i < ie; ++i )
         {
@@ -687,6 +692,7 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
     {
         StopWatch w( logger );
         idxmap_.resize( IDXMAP_SIZE, 0 );
+        used_mem_ += idxmap_.size()*sizeof( uint32_t );
         uint32_t idxmap_off( 0 );
 
         for( size_t i( 0 ); i < IDXMAP_SIZE; ++i )
@@ -920,6 +926,7 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
 
         std::sort( freq_table_.begin(), freq_table_.end() );
         p.Stop();
+        used_mem_ += freq_table_.size()*sizeof( FreqTableEntry );
         M_INFO( logger, freq_table_.size() << " entries in frequency table" );
     }
 
@@ -1020,6 +1027,7 @@ CFastSeedsIndex & CFastSeedsIndex::Load(
     {
         ssize_t n_job_pos( 0 );
         roff_.resize( refs_.GetSize() + 1 );
+        used_mem_ += roff_.size()*sizeof( uint32_t );
 
         for( size_t i( 0 ), ie( refs_.GetSize() ); i < ie; ++i )
         {
@@ -1044,6 +1052,7 @@ CFastSeedsIndex & CFastSeedsIndex::Load(
         }
 
         ifs.read( (char *)&idxmap_[0], IDXMAP_SIZE*sizeof( uint32_t ) );
+        used_mem_ += IDXMAP_SIZE*sizeof( uint32_t );
 
         if( !ifs )
         {
@@ -1099,6 +1108,7 @@ CFastSeedsIndex & CFastSeedsIndex::Load(
             ifs.read(
                 reinterpret_cast< char * >( freq_table_.data() ),
                 sizeof( FreqTableEntry )*sz );
+            used_mem_ += sizeof( FreqTableEntry )*sz;
             ctx_.dynamic_batches_ = true;
             M_INFO(
                 ctx_.logger_, "loaded word frequency table from " << fname );

@@ -167,8 +167,14 @@ public:
     {
         if( !keep_loaded_ )
         {
+            assert( used_mem_ >= idx_.size()*sizeof( IndexChunk ) );
+            used_mem_ -= idx_.size()*sizeof( IndexChunk );
             Index().swap( idx_ );
+
+            assert( used_mem_ >= idxmap_.size()*sizeof( uint32_t ) );
+            used_mem_ -= idxmap_.size()*sizeof( uint32_t );
             IndexMap().swap( idxmap_ );
+
             index_stream_.close();
             M_INFO( ctx_.logger_, "Index data unloaded" );
         }
@@ -236,6 +242,8 @@ public:
         }
     }
 
+    size_t GetMemUsage() const { return used_mem_; }
+
 private:
 
     void SetUpChunks( bool allocate = true );
@@ -249,6 +257,7 @@ private:
     std::ifstream index_stream_;
     std::vector< FreqTableEntry > freq_table_;
     bool keep_loaded_ = false;
+    size_t used_mem_ = 0ULL; // used memory in bytes
 };
 
 READFINDER_NS_END

@@ -57,6 +57,14 @@ void SearchSeeds( CSearchOptions const & opts )
     }
 
     size_t batch_num( 0 );
+    ctx.used_mem_bytes = ctx.refs->GetMemUsage() + ctx.fsidx->GetMemUsage();
+    M_INFO( ctx.logger_, ctx.used_mem_bytes << " bytes used by database" );
+    
+    if( ctx.max_mem_bytes < ctx.used_mem_bytes )
+    {
+        M_THROW( "loaded database size exceeds memory limit" );
+    }
+
     while( MakeBatch( ctx, batch_num++ )->RunSeeder() );
     ctx.fsidx->Unload();
     M_FORCE_LOG( ctx.logger_, "total reads: " << ctx.n_reads );
