@@ -823,7 +823,7 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
     //
     size_t fhist[65];
     std::fill( fhist, fhist + 65, 0 );
-    size_t cutoff_idx( 65 );
+    cutoff_idx_ = 65;
 
     if( pij_data.size() > 0 )
     {
@@ -872,13 +872,13 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
 
         constexpr size_t const NUM_WORDS_CUTOFF = 128*1024*1024ULL;
 
-        for( size_t num_words( 0 ); cutoff_idx > 0; )
+        for( size_t num_words( 0 ); cutoff_idx_ > 0; )
         {
-            if( num_words + fhist[--cutoff_idx] > NUM_WORDS_CUTOFF ) break;
-            num_words += fhist[cutoff_idx];
+            if( num_words + fhist[--cutoff_idx_] > NUM_WORDS_CUTOFF ) break;
+            num_words += fhist[cutoff_idx_];
         }
 
-        M_INFO( logger, "cutoff frequency is " << cutoff_idx );
+        M_INFO( logger, "cutoff frequency is " << cutoff_idx_ );
     }
 
     // create the log frequency table for repeated words
@@ -913,7 +913,7 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
                     if( f <= j ) break;
                 }
 
-                if( i > cutoff_idx )
+                if( i > cutoff_idx_ )
                 {
                     fte.word = w;
                     fte.freq = i;
@@ -955,6 +955,9 @@ CFastSeedsIndex & CFastSeedsIndex::Save( std::string const & basename )
         ofs.write(
             reinterpret_cast< char const * >( freq_table_.data() ),
             sz*sizeof( FreqTableEntry ) );
+        ofs.write(
+            reinterpret_cast< char const * >( &cutoff_idx_ ),
+            sizeof( uint64_t ) );
         M_INFO( logger, "saved log frequency data to " << fname );
     }
 
@@ -1109,6 +1112,11 @@ CFastSeedsIndex & CFastSeedsIndex::Load(
                 reinterpret_cast< char * >( freq_table_.data() ),
                 sizeof( FreqTableEntry )*sz );
             used_mem_ += sizeof( FreqTableEntry )*sz;
+            ifs.read(
+                reinterpret_cast< char * >( &cutoff_idx_ ),
+                sizeof( uint64_t ) );
+            assert( cutoff_idx_ <= 65 );
+            M_INFO( ctx_.logger_, "frequency cutoff idx: " << cutoff_idx_ );
             ctx_.dynamic_batches_ = true;
             M_INFO(
                 ctx_.logger_, "loaded word frequency table from " << fname );

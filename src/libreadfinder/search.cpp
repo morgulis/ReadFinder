@@ -62,7 +62,9 @@ void SearchSeeds( CSearchOptions const & opts )
     
     if( ctx.max_mem_bytes < ctx.used_mem_bytes )
     {
-        M_THROW( "loaded database size exceeds memory limit" );
+        M_THROW(
+            "loaded database size " << ctx.used_mem_bytes <<
+            " exceeds memory limit " << ctx.max_mem_bytes );
     }
 
     while( MakeBatch( ctx, batch_num++ )->RunSeeder() );

@@ -256,6 +256,7 @@ private:
     Index idx_;
     std::ifstream index_stream_;
     std::vector< FreqTableEntry > freq_table_;
+    uint64_t cutoff_idx_ = 0;
     bool keep_loaded_ = false;
     size_t used_mem_ = 0ULL; // used memory in bytes
 };
