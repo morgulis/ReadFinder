@@ -75,6 +75,8 @@ protected:
         }
     };
 
+public:
+
     struct FreqTableEntry
     {
         uint64_t anchor : ANCHOR_BITS;

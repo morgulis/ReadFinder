@@ -36,6 +36,7 @@
 #include <vector>
 
 #include <libreadfinder/defs.hpp>
+#include <libreadfinder/fsidx.hpp>
 
 #include <libseq/seqbuf.hpp>
 #include <libseq/seqinput.hpp>
@@ -60,19 +61,26 @@ private:
 
 public:
 
+    class HashWordSource;
+    class HashMaskSource;
+
     struct Read;
 
     CReadData( CLogger & logger,
                CSeqInput & seqs,
                boost::dynamic_bitset< TWord > const * ws,
+               CFastSeedsIndex const & fsidx,
                size_t batch_size,
+               size_t mem_limit,
                int progress_flags = 0
              );
 
     OrdId AddSeqData( std::string const & id,
                       std::string const & iupac,
                       EStrand strand,
-                      EMate mate, bool read_is_paired
+                      EMate mate, bool read_is_paired,
+                      size_t & mem_used,
+                      CFastSeedsIndex const & fsidx
                     );
 
     Read const & operator[]( OrdId oid ) const;
@@ -113,6 +121,8 @@ private:
     typedef CUnit< Code::UNIT > Unit;
 
     static size_t const WUNITS = Unit::WordUnits< Word >::N_UNITS;
+    static size_t const WBITS = WUNITS*Unit::N_BITS;
+    static size_t const WBYTES = WBITS/BYTE_BITS;
 
     typedef CFixedSeqBuf< CODING, TWord > SeqBuf;
 
@@ -140,8 +150,12 @@ private:
 
     typedef std::vector< ssize_t > MaskCache;
 
-    void AppendData( OrdId oid, std::string const & iupac, 
-                     EStrand strand, uint8_t mate_idx );
+    size_t AppendData(
+        OrdId oid, std::string const & iupac,
+        EStrand strand, uint8_t mate_idx,
+        CFastSeedsIndex const & fsidx );
+    size_t EstimateMatches(
+        OrdId oid, uint8_t mate_idx, CFastSeedsIndex const & fsidx );
     void ExtendBuffers( size_t len );
     void ExtendBuffer( size_t len );
 
@@ -160,6 +174,186 @@ private:
            n_ambig_seq_ = 0;
 };
 
+//==============================================================================
+class CReadData::HashWordSource : public CFastSeedsDefs
+{
+public:
+
+    HashWordSource( TWord const * seq_data, TSeqLen len, TSeqOff off );
+    void operator++();
+
+    uint32_t GetAnchor() const { return data_.f.anchor; }
+    uint32_t GetWord() const { return data_.f.word; }
+    TSeqOff GetHashOff() const { return off_ - off_adj_; }
+    operator bool() const { return !done_; }
+
+private:
+
+    struct
+    {
+        union
+        {
+            struct
+            {
+                uint64_t word   : WORD_BITS;
+                uint64_t anchor : ANCHOR_BITS;
+            } f;
+
+            TWord w;
+        };
+    } data_;
+
+    static_assert( sizeof( data_ ) == 8, "" );
+
+    TWord nw_;
+    TWord const * seq_data_;
+    TSeqLen len_;
+    TSeqOff off_,
+            off_adj_;
+    bool done_ = true;
+};
+
+//------------------------------------------------------------------------------
+inline CReadData::HashWordSource::HashWordSource(
+        TWord const * seq_data, TSeqLen len, TSeqOff off )
+    : nw_( 0 ), seq_data_( seq_data ), len_( off + len ),
+      off_( off ), off_adj_( off )
+{
+    if( off_ >= len_ )
+    {
+        return;
+    }
+
+    done_ = false;
+    data_.w = *seq_data_++;
+    nw_ = *seq_data_++;
+
+    auto shift( off*LB );
+    TWord mask( (1ULL<<shift) - 1 );
+    data_.w >>= shift;
+    data_.w += ((nw_&mask)<<(WL*LB - shift));
+    nw_ >>= shift;
+}
+
+//------------------------------------------------------------------------------
+inline void CReadData::HashWordSource::operator++()
+{
+    TSeqOff woff( off_++%WL );
+    
+    if( off_ >= len_ )
+    {
+        done_ = true;
+        return;
+    }
+
+    ++woff;
+    data_.w >>= LB;
+    data_.w += (nw_<<((WL - 1)*LB));
+
+    if( woff >= WL )
+    {
+        woff -= WL;
+        nw_ = *seq_data_++;
+
+        if( woff > 0 )
+        {
+            data_.w += (nw_<<((WL - woff)*LB));
+            nw_ >>= woff*LB;
+        }
+    }
+    else
+    {
+        nw_ >>= LB;
+    }
+}
+
+//==============================================================================
+class CReadData::HashMaskSource : public CFastSeedsDefs
+{
+public:
+
+    HashMaskSource( TWord const * mask_data, TSeqLen len, TSeqOff off );
+    void operator++();
+
+    uint64_t GetNMer() const { return data_.f.nmer; }
+    operator bool() const { return !done_; }
+
+private:
+
+    struct
+    {
+        union
+        {
+            struct
+            {
+                uint64_t nmer : NMER_BITS;
+            } f;
+
+            TWord w;
+        };
+    } data_;
+
+    static_assert( sizeof( data_ ) == 8, "" );
+
+    TWord nw_ = 0;
+    TWord const * mask_data_;
+    TSeqLen len_;
+    TSeqOff off_ = 0;
+    bool done_ = true;
+};
+
+//------------------------------------------------------------------------------
+inline CReadData::HashMaskSource::HashMaskSource(
+        TWord const * mask_data, TSeqLen len, TSeqOff off )
+    : mask_data_( mask_data ), len_( off + len ), off_( off )
+{
+    if( off_ >= len )
+    {
+        return;
+    }
+
+    done_ = false;
+    data_.w = *mask_data_++;
+    nw_ = *mask_data_++;
+
+    auto shift( off*LB );
+    TWord mask( (1ULL<<shift) - 1 );
+    data_.w >>= shift;
+    data_.w += ((nw_&mask)<<(WL*LB - shift));
+    nw_ >>= shift;
+}
+
+//------------------------------------------------------------------------------
+inline void CReadData::HashMaskSource::operator++()
+{
+    TSeqOff woff( off_++%WL );
+    
+    if( off_ >= len_ )
+    {
+        done_ = true;
+        return;
+    }
+
+    ++woff;
+    data_.w >>= LB;
+    data_.w += (nw_<<((WL - 1)*LB));
+
+    if( woff >= WL )
+    {
+        woff -= WL;
+        nw_ = *mask_data_++;
+
+        if( woff > 0 )
+        {
+            data_.w += (nw_<<((WL - woff)*LB));
+            nw_ >>= woff*LB;
+        }
+    }
+    else
+    {
+        nw_ >>= LB;
+    }
+}
 //------------------------------------------------------------------------------
 struct CReadData::Read
 {

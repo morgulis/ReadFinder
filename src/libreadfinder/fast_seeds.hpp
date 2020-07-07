@@ -87,8 +87,8 @@ private:
 
     typedef std::vector< HashWord > WordTable;
 
-    class HashWordSource;
-    class HashMaskSource;
+    typedef CReadData::HashWordSource HashWordSource;
+    typedef CReadData::HashMaskSource HashMaskSource;
 
     struct SeedSearchJobData;
     struct SeedSearchJob;

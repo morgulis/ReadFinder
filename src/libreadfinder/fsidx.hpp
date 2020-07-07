@@ -255,8 +255,14 @@ private:
     ChunkMap chunk_map_;
     Index idx_;
     std::ifstream index_stream_;
+
+public:
+
     std::vector< FreqTableEntry > freq_table_;
     uint64_t cutoff_idx_ = 0;
+
+private:
+
     bool keep_loaded_ = false;
     size_t used_mem_ = 0ULL; // used memory in bytes
 };
