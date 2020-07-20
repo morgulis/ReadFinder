@@ -82,8 +82,8 @@ inline size_t CReadData::EstimateMatches(
 
     for( EStrand s : { eFWD, eREV } )
     {
-        auto const & sd( GetSeqData( oid, mate_idx, s ) ),
-                   & md( GetMaskData( oid, mate_idx, s ) );
+        auto const & sd( GetSeqData( oid, ToMate( mate_idx ), s ) ),
+                   & md( GetMaskData( oid, ToMate( mate_idx ), s ) );
         HashWordSource hws( sd.GetBuf(), sd.size(), sd.GetStart() );
         HashMaskSource hms( md.GetBuf(), md.size(), md.GetStart() );
 
@@ -104,6 +104,7 @@ inline size_t CReadData::EstimateMatches(
                 else frequency = default_frequency;
 
                 mem_used += frequency*STRUCT_HIT_BYTES;
+                // mem_used += default_frequency;
             }
 
             ++hws;
