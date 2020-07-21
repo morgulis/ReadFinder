@@ -870,7 +870,8 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
             M_INFO( logger, "freq: " << i << "; count: " << fhist[i] );
         }
 
-        constexpr size_t const NUM_WORDS_CUTOFF = 128*1024*1024ULL;
+        // constexpr size_t const NUM_WORDS_CUTOFF = 128*1024*1024ULL;
+        constexpr size_t const NUM_WORDS_CUTOFF = 1024*1024ULL;
 
         for( size_t num_words( 0 ); cutoff_idx_ > 0; )
         {
