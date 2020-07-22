@@ -1124,6 +1124,7 @@ CFastSeedsIndex & CFastSeedsIndex::Load(
         }
     }
 
+    if( load_chunks ) keep_loaded_ = true;
     return *this;
 }
 

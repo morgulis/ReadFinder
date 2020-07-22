@@ -43,7 +43,7 @@ void SearchSeeds( CSearchOptions const & opts )
 
     if( !ctx.db_name.empty() )
     {
-        try { ctx.fsidx->Load( ctx.db_name ); }
+        try { ctx.fsidx->Load( ctx.db_name, ctx.keep_loaded ); }
         catch( std::exception const & e )
         {
             M_INFO( ctx.logger_, "index load failed: " );
