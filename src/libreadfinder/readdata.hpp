@@ -79,7 +79,8 @@ public:
                       std::string const & iupac,
                       EStrand strand,
                       EMate mate, bool read_is_paired,
-                      size_t & mem_used,
+                      size_t & bases_read, size_t & mem_used,
+                      std::vector< TWord > & words,
                       CFastSeedsIndex const & fsidx
                     );
 
@@ -153,9 +154,9 @@ private:
     size_t AppendData(
         OrdId oid, std::string const & iupac,
         EStrand strand, uint8_t mate_idx,
-        CFastSeedsIndex const & fsidx );
-    size_t EstimateMatches(
-        OrdId oid, uint8_t mate_idx, CFastSeedsIndex const & fsidx );
+        CFastSeedsIndex const & fsidx, std::vector< TWord > & words );
+    void CollectWords(
+        OrdId oid, uint8_t mate_idx, std::vector< TWord > & words );
     void ExtendBuffers( size_t len );
     void ExtendBuffer( size_t len );
 
@@ -189,8 +190,12 @@ public:
 
 private:
 
-    struct
+    struct _Data
     {
+        uint64_t GetWord() const { return f.word; }
+        uint64_t GetAnchor() const { return f.anchor; }
+        TWord GetData() const { return w; }
+
         union
         {
             struct
@@ -201,9 +206,21 @@ private:
 
             TWord w;
         };
+
+        _Data() {}
+        _Data( TWord ww ) { w = ww; }
     } data_;
 
     static_assert( sizeof( data_ ) == 8, "" );
+
+public:
+
+    typedef _Data Data;
+
+    Data & GetData() { return data_; }
+    Data const & GetData() const { return data_; }
+
+private:
 
     TWord nw_;
     TWord const * seq_data_;

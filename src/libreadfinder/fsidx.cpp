@@ -482,7 +482,7 @@ void CFastSeedsIndex::IndexChunk::Save( std::ostream & os ) const
 }
 
 //------------------------------------------------------------------------------
-void CFastSeedsIndex::IndexChunk::Load( std::ifstream & is )
+void CFastSeedsIndex::IndexChunk::Load( std::ifstream & is, size_t * used_mem )
 {
     if( !loaded_ )
     {
@@ -497,6 +497,7 @@ void CFastSeedsIndex::IndexChunk::Load( std::ifstream & is )
             M_THROW( "error reading " << sz << " bytes of index data" );
         }
 
+        if( used_mem != nullptr ) *used_mem += sz;
         loaded_ = true;
     }
 }
@@ -870,8 +871,8 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
             M_INFO( logger, "freq: " << i << "; count: " << fhist[i] );
         }
 
-        // constexpr size_t const NUM_WORDS_CUTOFF = 128*1024*1024ULL;
-        constexpr size_t const NUM_WORDS_CUTOFF = 1024*1024ULL;
+        constexpr size_t const NUM_WORDS_CUTOFF = 128*1024*1024ULL;
+        // constexpr size_t const NUM_WORDS_CUTOFF = 1024*1024ULL;
 
         for( size_t num_words( 0 ); cutoff_idx_ > 0; )
         {
@@ -896,7 +897,7 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
 
         for( size_t anchor( 0 ); anchor < IDXMAP_SIZE - 1; ++anchor )
         {
-            fte.anchor = anchor;
+            fte.data.f.anchor = anchor;
             auto * ib( begin( anchor ) ),
                  * ie( end( anchor ) ),
                  * iie( ib );
@@ -916,8 +917,8 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
 
                 if( i > cutoff_idx_ )
                 {
-                    fte.word = w;
-                    fte.freq = i;
+                    fte.data.f.word = w;
+                    fte.data.f.freq = i;
                     freq_table_.push_back( fte );
                 }
             }
@@ -1083,7 +1084,7 @@ CFastSeedsIndex & CFastSeedsIndex::Load(
         {
             for( auto & chunk : idx_ )
             {
-                chunk.Load( index_stream_ );
+                chunk.Load( index_stream_, &used_mem_ );
             }
 
             M_INFO( ctx_.logger_, "loaded index data from " << fname );

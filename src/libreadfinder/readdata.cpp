@@ -68,18 +68,9 @@ inline void CReadData::ExtendBuffers( size_t len )
 }
 
 //------------------------------------------------------------------------------
-inline size_t CReadData::EstimateMatches(
-    OrdId oid, uint8_t mate_idx, CFastSeedsIndex const & fsidx )
+inline void CReadData::CollectWords(
+    OrdId oid, uint8_t mate_idx, std::vector< TWord > & words )
 {
-    // IMPORTANT: should be equal to sizeof( CFastSeeds::Hit )
-    static constexpr size_t const STRUCT_HIT_BYTES = 12ULL;
-
-    size_t mem_used( 0 );
-    size_t default_frequency( 1ULL<<fsidx.cutoff_idx_ ),
-           frequency;
-    auto const & ftbl( fsidx.freq_table_ );
-    CFastSeedsDefs::FreqTableEntry key;
-
     for( EStrand s : { eFWD, eREV } )
     {
         auto const & sd( GetSeqData( oid, ToMate( mate_idx ), s ) ),
@@ -87,39 +78,23 @@ inline size_t CReadData::EstimateMatches(
         HashWordSource hws( sd.GetBuf(), sd.size(), sd.GetStart() );
         HashMaskSource hms( md.GetBuf(), md.size(), md.GetStart() );
 
-        while( hws)
+        for( ; hws; ++hws, ++hms )
         {
             assert( hms );
 
             if( GetNSet( hms.GetNMer() ) == 0 )
             {
-                key.anchor = hws.GetAnchor();
-                key.word = hws.GetWord();
-                auto r( std::equal_range( ftbl.begin(), ftbl.end(), key ) );
-
-                if( r.first != r.second )
-                {
-                    frequency = (1ULL<<(r.first->freq));
-                }
-                else frequency = default_frequency;
-
-                mem_used += frequency*STRUCT_HIT_BYTES;
-                // mem_used += default_frequency;
+                words.push_back( hws.GetData().GetData() );
             }
-
-            ++hws;
-            ++hms;
         }
     }
-
-    return mem_used;
 }
 
 //------------------------------------------------------------------------------
 inline size_t CReadData::AppendData( 
         OrdId oid, std::string const & iupac, 
-        EStrand strand, uint8_t mate_idx,
-        CFastSeedsIndex const & fsidx )
+        EStrand strand, uint8_t mate_idx, CFastSeedsIndex const & fsidx,
+        std::vector< TWord > & words )
 {
     size_t mem_used( 0 );
     typedef CFixedConstSeqView< eIUPACNA, uint8_t > SrcView;
@@ -192,7 +167,7 @@ inline size_t CReadData::AppendData(
 
         mate.data[2 - strand] = orig_data_sz + 3*WUNITS + mate.len;
         ++n_seq_;
-        mem_used += EstimateMatches( oid, mate_idx, fsidx );
+        CollectWords( oid, mate_idx, words );
     }
     else
     {
@@ -205,7 +180,8 @@ inline size_t CReadData::AppendData(
 //------------------------------------------------------------------------------
 auto CReadData::AddSeqData( 
         std::string const & id, std::string const & iupac, 
-        EStrand strand, EMate mate, bool read_is_paired, size_t & mem_used,
+        EStrand strand, EMate mate, bool read_is_paired,
+        size_t & bases_read, size_t & mem_used, std::vector< TWord > & words,
         CFastSeedsIndex const & fsidx
     ) -> OrdId
 {
@@ -243,7 +219,9 @@ auto CReadData::AddSeqData(
         ids_.resize( sz );
     }
 
-    mem_used += AppendData( oid, iupac, strand, FromMate( mate ), fsidx );
+    mem_used += AppendData(
+        oid, iupac, strand, FromMate( mate ), fsidx, words );
+    bases_read += iupac.size();
     return i->ordid;
 }
 
@@ -347,12 +325,19 @@ CReadData::CReadData(
     : logger_( logger ),
       mask_cache_( 1 + std::numeric_limits< TReadLen >::max(), -1 )
 {
-    static size_t const MAX_READ_LEN = 32*1024;
+    static constexpr size_t const MAX_READ_LEN = 32*1024;
+    static constexpr size_t const LIM_BASES = 20*1024*1024ULL;
+    static constexpr size_t const STRUCT_HIT_BYTES = 12ULL;
 
     size_t i( 0 ),
            n_skipped( 0 ),
            n_screened( 0 ),
-           mem_used( 0 );
+           mem_used( 0 ),
+           bases_read( 0 );
+    size_t default_frequency( (1ULL<<fsidx.cutoff_idx_)*STRUCT_HIT_BYTES );
+    std::vector< TWord > words;
+    auto const & ftbl( fsidx.freq_table_ );
+
     CCounterProgress p( "reading input data", "reads", progress_flags );
     p.Start();
 
@@ -387,16 +372,43 @@ CReadData::CReadData(
                 {
                     AddSeqData( sd.GetId(), sd.GetData( mi ),
                                 eFWD, ToMate( mi ), (mie > 1),
-                                mem_used, fsidx );
+                                bases_read, mem_used, words, fsidx );
                 }
                 else
                 {
                     ++n_screened;
                     AddSeqData( sd.GetId(), "",
                                 eFWD, ToMate( mi ), (mie > 1),
-                                mem_used, fsidx );
+                                bases_read, mem_used, words, fsidx );
                 }
             }
+        }
+
+        if( bases_read > LIM_BASES )
+        {
+            std::sort( words.begin(), words.end() );
+            auto fi( ftbl.begin() ), fie( ftbl.end() );
+
+            for( auto w : words )
+            {
+                for( ; fi != fie && fi->data.d < w; ++fi );
+
+                if( fi != fie )
+                {
+                    HashWordSource::Data wd( w );
+
+                    if( fi->data.f.anchor == wd.GetAnchor() &&
+                        fi->data.f.word == wd.GetWord() )
+                    {
+                        mem_used += (1ULL<<(fi->data.f.freq))*STRUCT_HIT_BYTES;
+                    }
+                    else mem_used += default_frequency;
+                }
+                else mem_used += default_frequency;
+            }
+
+            words.clear();
+            bases_read = 0;
         }
 
         if( mem_used > mem_limit || ++i >= batch_size )
@@ -407,6 +419,7 @@ CReadData::CReadData(
         p.GetTop().Increment();
     }
 
+    words.clear();
     M_INFO( logger, n_skipped <<
                     " reads were skipped due to length restriction" );
     M_INFO( logger, n_screened <<

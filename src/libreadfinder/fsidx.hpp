@@ -84,7 +84,7 @@ private:
         IndexChunk( CCommonContext & ctx, IndexMap const & idxmap,
                     size_t start_anchor, size_t end_anchor );
 
-        void Load( std::ifstream & is );
+        void Load( std::ifstream & is, size_t * used_mem = nullptr ); 
         void Unload( CCommonContext & ctx );
         void Save( std::ostream & os ) const;
 
