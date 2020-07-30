@@ -74,6 +74,29 @@ protected:
                       << " }" << std::dec;
         }
     };
+
+public:
+
+    struct FreqTableEntry
+    {
+        union
+        {
+            struct
+            {
+                uint64_t word   : WORD_BITS;
+                uint64_t anchor : ANCHOR_BITS;
+                uint64_t freq   : 8;
+            } f;
+
+            uint64_t d;
+        } data;
+
+        friend bool operator<(
+            FreqTableEntry const & x, FreqTableEntry const & y )
+        {
+            return x.data.d < y.data.d;
+        }
+    };
 };
 
 READFINDER_NS_END

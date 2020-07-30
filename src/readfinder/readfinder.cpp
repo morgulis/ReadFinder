@@ -239,6 +239,10 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
           "input file format {fasta,zfasta,fastq,zfastq}; "
 #endif
           "[default: fasta or zfasta if name ends in .gz]" )
+        ( "memory,M",
+          po::value< size_t >( &search_opts.max_mem ),
+          "memory limit in megabytes "
+          "[default: 90% of available machine memory]" )
         ( "batch-size,b",
           po::value< size_t >( &search_opts.batch ),
           "process reads in batches of this size "
@@ -246,6 +250,9 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
         ( "first-read",
           po::value< size_t >( &search_opts.start_read ),
           "first read to process (0-based) [default: 0]" )
+        ( "keep-db-loaded",
+          po::bool_switch( &search_opts.keep_loaded ),
+          "keep database loaded in RAM across batches" )
         ( "last-read",
           po::value< size_t >( &search_opts.end_read ),
           "last read to process (0-based) "

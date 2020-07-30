@@ -56,16 +56,6 @@ CRefData::CRefData( std::string const & db_name )
                 id_map_.push_back( line );
             }
         }
-
-        for( TIdMap::size_type i( 0 ); i < id_map_.size(); ++i ) {
-            std::string const & id( id_map_[i] );
-    
-            if( oid_map_.find( id ) != oid_map_.end() ) {
-                M_THROW( "duplicate id " << id );
-            }
-
-            oid_map_[id] = i;
-        }
     }
 
     // load offsets
@@ -143,6 +133,27 @@ void CRefData::Load( TRefOId refid )
     {
         M_THROW( "read failed for sequence " << refid << " mask data" );
     }
+}
+
+//------------------------------------------------------------------------------
+size_t CRefData::GetMemUsage() const
+{
+    size_t res( 0 );
+    res += id_map_.size()*sizeof( std::string );
+    for( auto const & id : id_map_ ) res += id.size();
+    res += offsets_.size()*sizeof( uint64_t );
+    res += lengths_.size()*sizeof( TSeqLen );
+    res += data_.size()*sizeof( SeqInfoHolder );
+
+    for( auto const & d : data_ )
+    {
+        if( d != nullptr )
+        {
+            res += (d->seqdata.size() + d->maskdata.size());
+        }
+    }
+
+    return res;
 }
 
 //------------------------------------------------------------------------------

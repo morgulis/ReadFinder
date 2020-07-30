@@ -87,8 +87,8 @@ private:
 
     typedef std::vector< HashWord > WordTable;
 
-    class HashWordSource;
-    class HashMaskSource;
+    typedef CReadData::HashWordSource HashWordSource;
+    typedef CReadData::HashMaskSource HashMaskSource;
 
     struct SeedSearchJobData;
     struct SeedSearchJob;
@@ -152,7 +152,7 @@ private:
     CReadData const & GetReads() const { return bctx_.GetReads(); }
 
     CBatch & bctx_;
-    CFastSeedsIndex fsidx_;
+    CFastSeedsIndex & fsidx_;
     WordTable wt_;
     WordMap wmap_ = WordMap( WMAP_SIZE, 0 );
     BitSet anchor_use_map_;

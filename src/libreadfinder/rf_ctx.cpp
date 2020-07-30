@@ -29,6 +29,8 @@
 
 #include <libreadfinder/rf_ctx.hpp>
 
+#include <unistd.h>
+
 READFINDER_NS_BEGIN
 
 //==============================================================================
@@ -77,6 +79,15 @@ CSearchContext::CSearchContext( CSearchOptions const & opts )
                             opts.start_read,
                             opts.end_read - opts.start_read,
                             opts.force_paired ) );
+
+    if( max_mem == 0 )
+    { // compute memory limit based on physical memory size
+        long pages( sysconf( _SC_PHYS_PAGES ) ),
+             page_size( sysconf( _SC_PAGE_SIZE ) );
+        max_mem_bytes = pages*page_size;
+    }
+    else max_mem_bytes = max_mem*1024ULL*1024ULL;
+
     refs.reset( new CRefData( opts.db_name ) );
     refs->LoadAll();
 
@@ -99,6 +110,8 @@ CSearchContext::CSearchContext( CSearchOptions const & opts )
         ifs.read( (char *)blocks.data(), sizeof( TWord )*blocks.size() );
         boost::from_block_range( blocks.begin(), blocks.end(), ws );
     }
+
+    fsidx.reset( new CFastSeedsIndex( *this, *refs ) );
 }
 
 //------------------------------------------------------------------------------
