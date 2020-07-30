@@ -39,7 +39,10 @@ CBatch::CBatch( CSearchContext & ctx, size_t batch_num )
     : ctx_( ctx ),
       reads_( new CReadData( ctx_.logger_, *ctx_.seqs,
                              (ctx_.pre_screen ? &ctx.ws : nullptr),
+                             *ctx_.fsidx,
                              ctx_.batch,
+                             (ctx_.used_mem_bytes < ctx_.max_mem_bytes ?
+                                ctx_.max_mem_bytes - ctx_.used_mem_bytes : 0),
                              ctx_.progress_flags_ ) ),
       batch_num_( batch_num )
 {

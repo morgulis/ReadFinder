@@ -105,9 +105,6 @@ public:
     /// Instance destructor.
     ~CRefData();
 
-    /** Get reference sequence ordinal id by its string id. */
-    TRefOId GetRefOId( std::string const & id ) const;
-
     /** Get the length in bases of the reference sequence by its ordinal id. */
     TSeqLen GetLength( TRefOId refid ) const;
 
@@ -161,6 +158,9 @@ public:
     */
     TWord const * GetMaskData( TRefOId refid ) const;
 
+    /** Return an estimate of used memory. */
+    size_t GetMemUsage() const;
+
 #ifdef TEST_ENABLED
     bool Check( int test_id, void * data = nullptr );
 #endif
@@ -175,7 +175,6 @@ private:
 
     std::string dbname_;    ///< Name (prefix) of the reference database.
     TIdMap id_map_;         ///< String ids indexed by ordinal id.
-    TOIdMap oid_map_;       ///< Map from ordinal ids to string ids.
     TOffsets offsets_;      /**< Sequence offsets within the database 
                                     indexed by ordinal id. */
     TLengths lengths_;      ///< Sequence lengths indexed by ordinal id.
@@ -189,19 +188,6 @@ private:
 inline CRefData::~CRefData() 
 { 
     gzclose( data_is_ );
-}
-
-//------------------------------------------------------------------------------
-inline auto CRefData::GetRefOId( std::string const & id ) const -> TRefOId
-{
-    TOIdMap::const_iterator i( oid_map_.find( id ) );
-
-    if( i == oid_map_.end() ) 
-    {
-        M_THROW( "reference id " << id << " not found" );
-    }
-
-    return i->second;
 }
 
 //------------------------------------------------------------------------------

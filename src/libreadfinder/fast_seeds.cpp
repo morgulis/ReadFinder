@@ -45,11 +45,8 @@ READFINDER_NS_BEGIN
 //------------------------------------------------------------------------------
 CFastSeeds::CFastSeeds( CBatch & bctx )
     : bctx_( bctx ),
-      fsidx_( CommonCtxP( new CCommonContext(
-                      static_cast< CCommonContext & >( 
-                          bctx.GetSearchCtx() ) ) ),
-              *bctx.GetSearchCtx().refs ),
-      anchor_use_map_( ANCHOR_TBL_SIZE, false )// ,
+      fsidx_( *bctx.GetSearchCtx().fsidx ),
+      anchor_use_map_( ANCHOR_TBL_SIZE, false )
 {
     bctx_.GetSearchCtx().refs->LoadAll();
     prescreen_ = bctx_.GetSearchCtx().pre_screen;
@@ -248,187 +245,6 @@ void IndexScanner::Finalize( size_t thread_idx )
 using TOOLS_NS::StopWatch;
 
 typedef CFastSeedsIndex::IndexEntry IndexEntry;
-
-//==============================================================================
-class CFastSeeds::HashWordSource
-{
-public:
-
-    HashWordSource( TWord const * seq_data, TSeqLen len, TSeqOff off );
-    void operator++();
-
-    uint32_t GetAnchor() const { return data_.f.anchor; }
-    uint32_t GetWord() const { return data_.f.word; }
-    TSeqOff GetHashOff() const { return off_ - off_adj_; }
-    operator bool() const { return !done_; }
-
-private:
-
-    struct
-    {
-        union
-        {
-            struct
-            {
-                uint64_t word   : WORD_BITS;
-                uint64_t anchor : ANCHOR_BITS;
-            } f;
-
-            TWord w;
-        };
-    } data_;
-
-    static_assert( sizeof( data_ ) == 8, "" );
-
-    TWord nw_;
-    TWord const * seq_data_;
-    TSeqLen len_;
-    TSeqOff off_,
-            off_adj_;
-    bool done_ = true;
-};
-
-//------------------------------------------------------------------------------
-inline CFastSeeds::HashWordSource::HashWordSource(
-        TWord const * seq_data, TSeqLen len, TSeqOff off )
-    : nw_( 0 ), seq_data_( seq_data ), len_( off + len ),
-      off_( off ), off_adj_( off )
-{
-    if( off_ >= len_ )
-    {
-        return;
-    }
-
-    done_ = false;
-    data_.w = *seq_data_++;
-    nw_ = *seq_data_++;
-
-    auto shift( off*LB );
-    TWord mask( (1ULL<<shift) - 1 );
-    data_.w >>= shift;
-    data_.w += ((nw_&mask)<<(WL*LB - shift));
-    nw_ >>= shift;
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HashWordSource::operator++()
-{
-    TSeqOff woff( off_++%WL );
-    
-    if( off_ >= len_ )
-    {
-        done_ = true;
-        return;
-    }
-
-    ++woff;
-    data_.w >>= LB;
-    data_.w += (nw_<<((WL - 1)*LB));
-
-    if( woff >= WL )
-    {
-        woff -= WL;
-        nw_ = *seq_data_++;
-
-        if( woff > 0 )
-        {
-            data_.w += (nw_<<((WL - woff)*LB));
-            nw_ >>= woff*LB;
-        }
-    }
-    else
-    {
-        nw_ >>= LB;
-    }
-}
-
-//==============================================================================
-class CFastSeeds::HashMaskSource
-{
-public:
-
-    HashMaskSource( TWord const * mask_data, TSeqLen len, TSeqOff off );
-    void operator++();
-
-    uint64_t GetNMer() const { return data_.f.nmer; }
-    operator bool() const { return !done_; }
-
-private:
-
-    struct
-    {
-        union
-        {
-            struct
-            {
-                uint64_t nmer : NMER_BITS;
-            } f;
-
-            TWord w;
-        };
-    } data_;
-
-    static_assert( sizeof( data_ ) == 8, "" );
-
-    TWord nw_ = 0;
-    TWord const * mask_data_;
-    TSeqLen len_;
-    TSeqOff off_ = 0;
-    bool done_ = true;
-};
-
-//------------------------------------------------------------------------------
-inline CFastSeeds::HashMaskSource::HashMaskSource(
-        TWord const * mask_data, TSeqLen len, TSeqOff off )
-    : mask_data_( mask_data ), len_( off + len ), off_( off )// ,
-{
-    if( off_ >= len )
-    {
-        return;
-    }
-
-    done_ = false;
-    data_.w = *mask_data_++;
-    nw_ = *mask_data_++;
-
-    auto shift( off*LB );
-    TWord mask( (1ULL<<shift) - 1 );
-    data_.w >>= shift;
-    data_.w += ((nw_&mask)<<(WL*LB - shift));
-    nw_ >>= shift;
-}
-
-//------------------------------------------------------------------------------
-inline void CFastSeeds::HashMaskSource::operator++()
-{
-    TSeqOff woff( off_++%WL );
-    
-    if( off_ >= len_ )
-    {
-        done_ = true;
-        return;
-    }
-
-    ++woff;
-    data_.w >>= LB;
-    data_.w += (nw_<<((WL - 1)*LB));
-
-    if( woff >= WL )
-    {
-        woff -= WL;
-        nw_ = *mask_data_++;
-
-        if( woff > 0 )
-        {
-            data_.w += (nw_<<((WL - woff)*LB));
-            nw_ >>= woff*LB;
-        }
-    }
-    else
-    {
-        nw_ >>= LB;
-    }
-}
 
 //==============================================================================
 struct CFastSeeds::WordCountingJobData
@@ -1228,7 +1044,7 @@ inline void CFastSeeds::ComputeSeeds()
 
     // free memory used by reference and read index
     //
-    fsidx_.Unload();
+    // fsidx_.Unload();
     { WordTable t; wt_.swap( t ); }
     { WordMap t; t.swap( wmap_ ); }
 
@@ -1588,24 +1404,6 @@ inline void CFastSeeds::UpdateAnchorUseMap( uint32_t wa )
 void CFastSeeds::Run()
 {
     CreateWordTable();
-
-    auto & ctx( bctx_.GetSearchCtx() );
-
-    if( !ctx.db_name.empty() )
-    {
-        try { fsidx_.Load( ctx.db_name ); }
-        catch( std::exception const & e )
-        {
-            M_INFO( ctx.logger_, "index load failed: " );
-            M_INFO( ctx.logger_, e.what() );
-            fsidx_.Create( ctx.n_threads );
-        }
-    }
-    else
-    {
-        fsidx_.Create( ctx.n_threads );
-    }
-
     ComputeSeeds();
 }
 

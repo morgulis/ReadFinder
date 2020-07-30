@@ -40,8 +40,35 @@ READFINDER_NS_BEGIN
 void SearchSeeds( CSearchOptions const & opts )
 {
     CSearchContext ctx( opts );
+
+    if( !ctx.db_name.empty() )
+    {
+        try { ctx.fsidx->Load( ctx.db_name, ctx.keep_loaded ); }
+        catch( std::exception const & e )
+        {
+            M_INFO( ctx.logger_, "index load failed: " );
+            M_INFO( ctx.logger_, e.what() );
+            ctx.fsidx->Create( ctx.n_threads );
+        }
+    }
+    else
+    {
+        ctx.fsidx->Create( ctx.n_threads );
+    }
+
     size_t batch_num( 0 );
+    ctx.used_mem_bytes = ctx.refs->GetMemUsage() + ctx.fsidx->GetMemUsage();
+    M_INFO( ctx.logger_, ctx.used_mem_bytes << " bytes used by database" );
+    
+    if( ctx.max_mem_bytes < ctx.used_mem_bytes )
+    {
+        M_THROW(
+            "loaded database size " << ctx.used_mem_bytes <<
+            " exceeds memory limit " << ctx.max_mem_bytes );
+    }
+
     while( MakeBatch( ctx, batch_num++ )->RunSeeder() );
+    ctx.fsidx->Unload();
     M_FORCE_LOG( ctx.logger_, "total reads: " << ctx.n_reads );
     M_FORCE_LOG( ctx.logger_,
                  "failed reads: " << ctx.seqs->GetNumFailedReads() );

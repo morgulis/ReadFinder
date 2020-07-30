@@ -299,6 +299,22 @@ The following values are supported:
 In the case of paired input, mixed formats are not supported.
 
 -----------------------------------
+```--memory [-M] <positive int>```
+
+Memory limit in megabytes. This is hint. The actual memory usage can
+be slightly higher. Note that there must be at least enough space for
+the in-memory part of the database, otherwise the program will exit
+with error. By default memory limit is set to 90% of the available
+machine memmory.
+
+-----------------------------------
+```--keep-db-loaded```
+
+If this flag is specified, the whole database index is kept pre-loaded
+in memory. This can help performance in setups with slow disk or
+network access.
+
+-----------------------------------
 ```--batch-size [-b] <positive_int>```
 
 Default value: `5000000`

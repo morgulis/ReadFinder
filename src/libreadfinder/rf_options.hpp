@@ -141,6 +141,8 @@ struct CSearchOptions : public CommonOptions
            start_read = 0,                                   ///< First read.
            end_read = std::numeric_limits< ssize_t >::max(); ///< Last read.
 
+    size_t max_mem = 0ULL;  ///< Max memory to use in megabytes.
+
     /** Seeds that extend to  within this many bases from the start or end
         of the mate (excluding A-tails and T-heads) are considered for
         generating flanking regions for short exon search.
@@ -158,6 +160,7 @@ struct CSearchOptions : public CommonOptions
     bool per_mate_marks = false; ///< Report individual mates in seeder.
     bool pre_screen = false;     ///< Pre-screen reads.
     bool force_paired = false;   ///< Force paired for single fasta/fastq input.
+    bool keep_loaded = false;    ///< Keep index loaded in memory.
 
     friend std::ostream & operator<<(
             std::ostream & os, CSearchOptions const & x )
