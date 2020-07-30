@@ -201,6 +201,9 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
         ( "db,d",
           po::value< std::string >( &search_opts.db_name )->required(),
           "base name of the reference database" )
+        ( "keep-db-loaded",
+          po::bool_switch( &search_opts.keep_loaded ),
+          "keep the whole database index loaded in RAM" )
         ( "input,i",
           po::value< std::string >( &search_opts.input_1 ),
 #ifdef USE_NGS
@@ -250,9 +253,6 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
         ( "first-read",
           po::value< size_t >( &search_opts.start_read ),
           "first read to process (0-based) [default: 0]" )
-        ( "keep-db-loaded",
-          po::bool_switch( &search_opts.keep_loaded ),
-          "keep database loaded in RAM across batches" )
         ( "last-read",
           po::value< size_t >( &search_opts.end_read ),
           "last read to process (0-based) "
