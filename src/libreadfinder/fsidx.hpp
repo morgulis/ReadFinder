@@ -149,6 +149,9 @@ private:
     struct IndexNMerCountingJob;
     struct PopulateIndexJob;
     struct SortIndexJob;
+    struct RepeatsFinderJob;
+    struct CreateFreqHistJob;
+    struct CreateFreqTableJob;
 
     class IndexEntrySource;
     class IndexMaskSource;

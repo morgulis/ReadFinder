@@ -445,6 +445,211 @@ inline void CFastSeedsIndex::SortIndexJob::operator()()
 }
 
 //==============================================================================
+struct CFastSeedsIndex::RepeatsFinderJob
+{
+    struct Data
+    {
+        size_t n_repeats = 0,
+               n_rpos = 0,
+               n_erepeats = 0,
+               n_erpos = 0;
+    };
+
+    RepeatsFinderJob(
+        CFastSeedsIndex & o,
+        std::atomic< uint32_t > & task_idx,
+        Data * data, size_t & job_idx,
+        CProgress::ProgressHandle & ph )
+    : o_( o ), task_idx_( task_idx ), data_( data[job_idx++] ), ph_( ph )
+    {}
+
+    void operator()();
+
+    CFastSeedsIndex & o_;
+    std::atomic< uint32_t > & task_idx_;
+    Data & data_;
+    CProgress::ProgressHandle & ph_;
+};
+
+//------------------------------------------------------------------------------
+inline void CFastSeedsIndex::RepeatsFinderJob::operator()()
+{
+    static size_t const EXACT_REPEAT_THRESHOLD = 128;
+    static size_t const REPEAT_THRESHOLD = 16;
+
+    while( true )
+    {
+        uint32_t anchor( task_idx_.fetch_add( 1 ) );
+        if( anchor >= IDXMAP_SIZE - 1 ) break;
+        auto * ib( o_.begin( anchor ) ),
+             * ie( o_.end( anchor ) ),
+             * iie( ib );
+
+        while( ib != ie )
+        {
+            uint32_t w( ib->wd.w.word );
+            for( iie = ib; iie != ie && iie->wd.w.word == w; ++iie );
+
+            if( (size_t)(iie - ib) > EXACT_REPEAT_THRESHOLD )
+            {
+                ++data_.n_erepeats;
+                ++data_.n_repeats;
+                data_.n_erpos += (iie - ib);
+                data_.n_rpos += (iie - ib);
+
+                for( ; ib != iie; ++ib )
+                {
+                    ib->wd.w.erepeat = true;
+                    ib->wd.w.repeat = true;
+                }
+            }
+            else if( (size_t)(iie - ib) > REPEAT_THRESHOLD )
+            {
+                ++data_.n_repeats;
+                data_.n_rpos += (iie - ib);
+
+                for( ; ib != iie; ++ib )
+                {
+                    ib->wd.w.repeat = true;
+                    ib->wd.w.erepeat = false;
+                }
+            }
+            else
+            {
+                for( ; ib != iie; ++ib )
+                {
+                    ib->wd.w.repeat = false;
+                    ib->wd.w.erepeat = false;
+                }
+            }
+        }
+
+        ph_.Increment();
+    }
+}
+
+//==============================================================================
+struct CFastSeedsIndex::CreateFreqHistJob
+{
+    struct Data
+    {
+        std::vector< size_t > fhist = std::vector< size_t >( 65, 0 );
+    };
+
+    CreateFreqHistJob(
+        CFastSeedsIndex & o,
+        std::atomic< uint32_t > & task_idx,
+        Data * data, size_t & job_idx,
+        CProgress::ProgressHandle & ph )
+    : o_( o ), task_idx_( task_idx ), data_( data[job_idx++] ), ph_( ph )
+    {}
+
+    void operator()();
+
+    CFastSeedsIndex & o_;
+    std::atomic< uint32_t > & task_idx_;
+    Data & data_;
+    CProgress::ProgressHandle & ph_;
+};
+
+//------------------------------------------------------------------------------
+inline void CFastSeedsIndex::CreateFreqHistJob::operator()()
+{
+    while( true )
+    {
+        uint32_t anchor( task_idx_.fetch_add( 1 ) );
+        if( anchor >= IDXMAP_SIZE - 1 ) break;
+        auto * ib( o_.begin( anchor ) ),
+             * ie( o_.end( anchor ) ),
+             * iie( ib );
+
+        for( ; ib != ie; ib = iie )
+        {
+            uint32_t w( ib->wd.w.word );
+            for( iie = ib; iie != ie && iie->wd.w.word == w; ++iie );
+            uint64_t f( iie - ib );
+            assert( f > 0ULL );
+            uint64_t i( 0ULL );
+
+            for( uint64_t j( 1ULL ); i < 64ULL; ++i, j <<= 1 )
+            {
+                if( f <= j )
+                {
+                    ++data_.fhist[i];
+                    break;
+                }
+            }
+
+            if( i == 64 ) ++data_.fhist[64];
+        }
+
+        ph_.Increment();
+    }
+}
+
+//==============================================================================
+struct CFastSeedsIndex::CreateFreqTableJob
+{
+    struct Data
+    {
+        std::vector< FreqTableEntry > freq_table_;
+    };
+
+    CreateFreqTableJob(
+        CFastSeedsIndex & o,
+        std::atomic< uint32_t > & task_idx,
+        Data * data, size_t & job_idx,
+        CProgress::ProgressHandle & ph )
+    : o_( o ), task_idx_( task_idx ), data_( data[job_idx++] ), ph_( ph )
+    {}
+
+    void operator()();
+
+    CFastSeedsIndex & o_;
+    std::atomic< uint32_t > & task_idx_;
+    Data & data_;
+    CProgress::ProgressHandle & ph_;
+};
+
+//------------------------------------------------------------------------------
+inline void CFastSeedsIndex::CreateFreqTableJob::operator()()
+{
+    while( true )
+    {
+        uint32_t anchor( task_idx_.fetch_add( 1 ) );
+        if( anchor >= IDXMAP_SIZE - 1 ) break;
+        FreqTableEntry fte;
+        fte.data.f.anchor = anchor;
+        auto * ib( o_.begin( anchor ) ),
+             * ie( o_.end( anchor ) ),
+             * iie( ib );
+
+        for( ; ib != ie; ib = iie )
+        {
+            uint32_t w( ib->wd.w.word );
+            for( iie = ib; iie != ie && iie->wd.w.word == w; ++iie );
+            uint64_t f( iie - ib );
+            assert( f > 0ULL );
+            uint64_t i( 0ULL );
+
+            for( uint64_t j( 1ULL ); i < 64ULL; ++i, j <<= 1 )
+            {
+                if( f <= j ) break;
+            }
+
+            if( i > o_.cutoff_idx_ )
+            {
+                fte.data.f.word = w;
+                fte.data.f.freq = i;
+                data_.freq_table_.push_back( fte );
+            }
+        }
+
+        ph_.Increment();
+    }
+}
+
+//==============================================================================
 //------------------------------------------------------------------------------
 CFastSeedsIndex::IndexChunk::IndexChunk(
         CCommonContext & ctx, IndexMap const & idxmap,
@@ -752,8 +957,6 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
     //
     if( pij_data.size() > 0 )
     {
-        static size_t const EXACT_REPEAT_THRESHOLD = 128;
-        static size_t const REPEAT_THRESHOLD = 16;
         StopWatch w( logger );
         size_t n_repeats( 0 ),
                n_rpos( 0 ),
@@ -763,57 +966,23 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
                      ctx_.progress_flags_ );
         auto ph( p.GetTop() );
         ph.SetTotal( IDXMAP_SIZE - 1 );
+        std::vector< RepeatsFinderJob::Data > jd( n_threads );
+        std::atomic< uint32_t > task_idx( 0 );
+        size_t job_idx( 0 );
+        CTaskArray< RepeatsFinderJob > jobs(
+            n_threads, *this, task_idx, &jd[0], job_idx, ph );
         p.Start();
-
-        for( size_t anchor( 0 ); anchor < IDXMAP_SIZE - 1; ++anchor )
+        jobs.Start();
+        p.Stop();
+        
+        for( auto const & data : jd )
         {
-            auto * ib( begin( anchor ) ),
-                 * ie( end( anchor ) ),
-                 * iie( ib );
-
-            while( ib != ie )
-            {
-                uint32_t w( ib->wd.w.word );
-                for( iie = ib; iie != ie && iie->wd.w.word == w; ++iie );
-
-                if( (size_t)(iie - ib) > EXACT_REPEAT_THRESHOLD )
-                {
-                    ++n_erepeats;
-                    ++n_repeats;
-                    n_erpos += (iie - ib);
-                    n_rpos += (iie - ib);
-
-                    for( ; ib != iie; ++ib )
-                    {
-                        ib->wd.w.erepeat = true;
-                        ib->wd.w.repeat = true;
-                    }
-                }
-                else if( (size_t)(iie - ib) > REPEAT_THRESHOLD )
-                {
-                    ++n_repeats;
-                    n_rpos += (iie - ib);
-
-                    for( ; ib != iie; ++ib )
-                    {
-                        ib->wd.w.repeat = true;
-                        ib->wd.w.erepeat = false;
-                    }
-                }
-                else
-                {
-                    for( ; ib != iie; ++ib )
-                    {
-                        ib->wd.w.repeat = false;
-                        ib->wd.w.erepeat = false;
-                    }
-                }
-            }
-
-            ph.Increment();
+            n_erepeats += data.n_erepeats;
+            n_erpos += data.n_erpos;
+            n_repeats += data.n_repeats;
+            n_rpos += data.n_rpos;
         }
 
-        p.Stop();
         M_INFO( logger, n_erepeats << " exact repeats marked" );
         M_INFO( logger, n_erpos << " exact repeat positions" );
         M_INFO( logger, n_repeats << " repeats marked" );
@@ -833,38 +1002,22 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
                      ctx_.progress_flags_ );
         auto ph( p.GetTop() );
         ph.SetTotal( IDXMAP_SIZE - 1 );
+        std::vector< CreateFreqHistJob::Data > jd( n_threads );
+        std::atomic< uint32_t > task_idx( 0 );
+        size_t job_idx( 0 );
+        CTaskArray< CreateFreqHistJob > jobs(
+            n_threads, *this, task_idx, &jd[0], job_idx, ph );
         p.Start();
-
-        for( size_t anchor( 0 ); anchor < IDXMAP_SIZE - 1; ++anchor )
-        {
-            auto * ib( begin( anchor ) ),
-                 * ie( end( anchor ) ),
-                 * iie( ib );
-
-            for( ; ib != ie; ib = iie )
-            {
-                uint32_t w( ib->wd.w.word );
-                for( iie = ib; iie != ie && iie->wd.w.word == w; ++iie );
-                uint64_t f( iie - ib );
-                assert( f > 0ULL );
-                uint64_t i( 0ULL );
-
-                for( uint64_t j( 1ULL ); i < 64ULL; ++i, j <<= 1 )
-                {
-                    if( f <= j )
-                    {
-                        ++fhist[i];
-                        break;
-                    }
-                }
-
-                if( i == 64 ) ++fhist[64];
-            }
-
-            ph.Increment();
-        }
-
+        jobs.Start();
         p.Stop();
+
+        for( auto const & data : jd )
+        {
+            for( size_t i( 0 ); i < 65; ++i )
+            {
+                fhist[i] += data.fhist[i];
+            }
+        }
 
         for( size_t i( 0 ); i < 65; ++i )
         {
@@ -892,38 +1045,20 @@ CFastSeedsIndex & CFastSeedsIndex::Create( size_t n_threads )
                      ctx_.progress_flags_ );
         auto ph( p.GetTop() );
         ph.SetTotal( IDXMAP_SIZE - 1 );
+        std::vector< CreateFreqTableJob::Data > jd( n_threads );
+        std::atomic< uint32_t > task_idx( 0 );
+        size_t job_idx( 0 );
+        CTaskArray< CreateFreqTableJob > jobs(
+            n_threads, *this, task_idx, &jd[0], job_idx, ph );
         p.Start();
-        FreqTableEntry fte;
+        jobs.Start();
 
-        for( size_t anchor( 0 ); anchor < IDXMAP_SIZE - 1; ++anchor )
+        for( auto & data : jd )
         {
-            fte.data.f.anchor = anchor;
-            auto * ib( begin( anchor ) ),
-                 * ie( end( anchor ) ),
-                 * iie( ib );
-
-            for( ; ib != ie; ib = iie )
-            {
-                uint32_t w( ib->wd.w.word );
-                for( iie = ib; iie != ie && iie->wd.w.word == w; ++iie );
-                uint64_t f( iie - ib );
-                assert( f > 0ULL );
-                uint64_t i( 0ULL );
-
-                for( uint64_t j( 1ULL ); i < 64ULL; ++i, j <<= 1 )
-                {
-                    if( f <= j ) break;
-                }
-
-                if( i > cutoff_idx_ )
-                {
-                    fte.data.f.word = w;
-                    fte.data.f.freq = i;
-                    freq_table_.push_back( fte );
-                }
-            }
-
-            ph.Increment();
+            std::copy(
+                data.freq_table_.begin(), data.freq_table_.end(),
+                std::back_inserter( freq_table_ ) );
+            std::vector< FreqTableEntry >().swap( data.freq_table_ );
         }
 
         std::sort( freq_table_.begin(), freq_table_.end() );
