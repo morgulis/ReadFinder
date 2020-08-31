@@ -41,6 +41,8 @@
 #include <libreadfinder/refdata.hpp>
 
 #include <libtools/progress.hpp>
+#include <libtools/stopwatch.hpp>
+#include <libtools/taskarray.hpp>
 
 READFINDER_NS_BEGIN
 
@@ -332,23 +334,43 @@ inline void WordSource::operator++()
 }
 
 //==============================================================================
-//------------------------------------------------------------------------------
-void CreateWorkSet(
-    CommonCtxP ctx, CMkDBOptions const & opts, CRefData const & refs )
+static size_t const WORD_SET_SIZE = 1ULL<<32;
+
+struct CreateWordSetJob
 {
-    static char const * WS_EXT = ".ws";
-    static size_t const WORD_SET_SIZE = 1ULL<<32;
-    boost::dynamic_bitset< TWord > ws( WORD_SET_SIZE );
-    M_INFO( ctx->logger_, "creating work set" );
-
-    CProgress p( "building word set", "reference sequences",
-                 ctx->progress_flags_ );
-    auto ph( p.GetTop() );
-    ph.SetTotal( refs.GetSize() );
-    p.Start();
-
-    for( size_t i( 0 ), ie( refs.GetSize() ); i < ie; ++i )
+    struct Data
     {
+        std::unique_ptr< boost::dynamic_bitset< TWord > > ws_;
+    };
+
+    CreateWordSetJob(
+        CRefData const & refs,
+        std::atomic< uint32_t > & task_idx,
+        Data * data, size_t & job_idx,
+        CProgress::ProgressHandle & ph )
+    : refs_( refs ), task_idx_( task_idx ), data_( data[job_idx++] ), ph_( ph )
+    {}
+
+    void operator()();
+
+    CRefData const & refs_;
+    std::atomic< uint32_t > & task_idx_;
+    Data & data_;
+    CProgress::ProgressHandle & ph_;
+};
+
+//------------------------------------------------------------------------------
+inline void CreateWordSetJob::operator()()
+{
+    data_.ws_.reset( new boost::dynamic_bitset< TWord >( WORD_SET_SIZE ) );
+
+    while( true )
+    {
+        uint32_t i( task_idx_.fetch_add( 1 ) );
+        if( i >= refs_.GetSize() ) break;
+        auto const & refs( refs_ );
+        auto & ws( *data_.ws_ );
+
         for( WordSource seq( refs.GetSeqData( i ), refs.GetLength( i ) ),
                         mask( refs.GetMaskData( i ), refs.GetLength( i ) );
                 seq; ++seq, ++mask )
@@ -365,10 +387,38 @@ void CreateWorkSet(
             }
         }
 
-        ph.Increment();
+        ph_.Increment();
+    }
+}
+
+//------------------------------------------------------------------------------
+void CreateWorkSet(
+    CommonCtxP ctx, CMkDBOptions const & opts, CRefData const & refs )
+{
+    static char const * WS_EXT = ".ws";
+    boost::dynamic_bitset< TWord > ws( WORD_SET_SIZE );
+    M_INFO( ctx->logger_, "creating work set" );
+
+    StopWatch w( ctx->logger_, "building word set" );
+    CProgress p( "building word set", "reference sequences",
+                 ctx->progress_flags_ );
+    auto ph( p.GetTop() );
+    ph.SetTotal( refs.GetSize() );
+    std::vector< CreateWordSetJob::Data > jd( opts.n_threads );
+    std::atomic< uint32_t > task_idx( 0 );
+    size_t job_idx( 0 );
+    CTaskArray< CreateWordSetJob > jobs(
+        opts.n_threads, refs, task_idx, &jd[0], job_idx, ph );
+    p.Start();
+    jobs.Start();
+    p.Stop();
+    
+    for( auto & data : jd )
+    {
+        ws |= *data.ws_;
+        data.ws_.reset();
     }
 
-    p.Stop();
     std::vector< TWord > blocks( ws.num_blocks(), 0 );
     boost::to_block_range( ws, blocks.begin() );
     auto fname( opts.output + WS_EXT );
