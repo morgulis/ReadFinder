@@ -21,15 +21,13 @@ to do is to change into that directory.
 Clone the ReadFinder git repository.
 
 ```
-> mkdir $ROOT/readfinder
-> cd $ROOT/readfinder
 > git clone https://github.com/morgulis/ReadFinder
 ```
 
 Build ReadFinder.
 
 ```
-> ReadFinder/src/scripts/build.sh $PWD
+> ReadFinder/src/scripts/build.sh $PWD/build
 ```
 
 If the build is successful, then readfinder executable will appear in
