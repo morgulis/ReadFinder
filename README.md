@@ -16,6 +16,25 @@ to do is to change into that directory.
 > cd $ROOT
 ```
 
+### Quick build
+
+Clone the ReadFinder git repository.
+
+```
+> mkdir $ROOT/readfinder
+> cd $ROOT/readfinder
+> git clone https://github.com/morgulis/ReadFinder
+```
+
+Build ReadFinder.
+
+```
+> ReadFinder/src/scripts/build.sh $PWD
+```
+
+If the build is successful, then readfinder executable will appear in
+`readfinder/build/readfinder/` sub-directory of `$ROOT`.
+
 ### Boost
 
 If Boost development packages are not already installed on the system, or if
