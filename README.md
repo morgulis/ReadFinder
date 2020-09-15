@@ -24,11 +24,14 @@ Download the build script from github.
 > wget https://github.com/morgulis/ReadFinder/blob/master/src/scripts/build.sh?raw=true -O build.sh
 ```
 
-Build ReadFinder.
+Build ReadFinder (note: the order of options is important).
 
 ```
-> bash ./build.sh $PWD/build
+> bash ./build.sh [--no-boost] [--no-ngs] $PWD/build
 ```
+
+`--no-boost` can be specified if there is a system wide installation of boost version at least 1.63.
+`--no-ngs` can be specified to disable support for direct access to SRA.
 
 If the build is successful, then `readfinder` executable will appear in
 `build/readfinder/build/readfinder/` sub-directory of `$ROOT`.
