@@ -18,20 +18,20 @@ to do is to change into that directory.
 
 ### Quick build
 
-Clone the ReadFinder git repository.
+Download the build script from github.
 
 ```
-> git clone https://github.com/morgulis/ReadFinder
+> wget https://github.com/morgulis/ReadFinder/blob/master/src/scripts/build.sh?raw=true -O build.sh
 ```
 
 Build ReadFinder.
 
 ```
-> ReadFinder/src/scripts/build.sh $PWD/build
+> bash ./build.sh $PWD/build
 ```
 
-If the build is successful, then readfinder executable will appear in
-`readfinder/build/readfinder/` sub-directory of `$ROOT`.
+If the build is successful, then `readfinder` executable will appear in
+`build/readfinder/build/readfinder/` sub-directory of `$ROOT`.
 
 ### Boost
 
