@@ -163,6 +163,9 @@ private:
     bool PreScreen(
         boost::dynamic_bitset< TWord > const & ws, std::string const & iupac );
 
+    size_t EstimateMemory(
+        CFastSeedsIndex const & fsidx, std::vector< TWord > & words );
+
     std::unique_ptr< IdSet > idset_;
 
     TOOLS_NS::CLogger & logger_;
@@ -194,6 +197,7 @@ private:
     {
         uint64_t GetWord() const { return f.word; }
         uint64_t GetAnchor() const { return f.anchor; }
+        uint64_t GetNMer() const { return (GetAnchor()<<WORD_BITS) + GetWord(); }
         TWord GetData() const { return w; }
 
         union

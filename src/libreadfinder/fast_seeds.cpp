@@ -735,10 +735,7 @@ inline void CFastSeeds::SeedSearchJob::MatchScan( uint32_t anchor )
 
             for( ; ib != iie; ++ib )
             {
-                for( auto wc( wb ); wc != wwe; ++wc )
-                {
-                    SaveHit( *ib, wc->hw );
-                }
+                for( auto wc( wb ); wc != wwe; ++wc ) SaveHit( *ib, wc->hw );
             }
 
             wb = wwe;
@@ -1062,22 +1059,17 @@ inline void CFastSeeds::ComputeSeeds()
             StopWatch w( ctx.logger_ );
 
             {
-                std::vector< size_t > job_sizes( n_jobs, 0 );
+                size_t total_hits( 0 );
 
                 for( auto const & job_data : jd )
                 {
-                    for( auto const & h : job_data.results )
-                    {
-                        size_t job_num( h.read/reads_per_job );
-                        ++job_sizes[job_num];
-                    }
+                    total_hits += job_data.results.size();
                 }
 
-                for( size_t i( 0 ); i < n_jobs; ++i )
-                {
-                    filter_job_hits[i].reserve( job_sizes[i] );
-                }
+                M_INFO( ctx.logger_, "TOTAL HITS: " << total_hits );
             }
+
+            M_INFO( ctx.logger_, "distributing hits..." );
 
             for( auto & job_data : jd )
             {

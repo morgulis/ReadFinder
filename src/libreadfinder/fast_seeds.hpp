@@ -30,6 +30,8 @@
 #ifndef LIBREADFINDER_FAST_SEEDS_HPP
 #define LIBREADFINDER_FAST_SEEDS_HPP
 
+#include <deque>
+
 #include <boost/dynamic_bitset.hpp>
 
 #include <config.h>
@@ -131,7 +133,8 @@ private:
 
     static_assert( sizeof( Hit ) == 12, "" );
 
-    typedef std::vector< Hit > Hits;
+    // typedef std::vector< Hit > Hits;
+    typedef std::deque< Hit > Hits;
     typedef HashWord TaskEntry;
 
     struct HitFilteringJob;

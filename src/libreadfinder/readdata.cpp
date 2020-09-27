@@ -84,7 +84,7 @@ inline void CReadData::CollectWords(
 
             if( GetNSet( hms.GetNMer() ) == 0 )
             {
-                words.push_back( hws.GetData().GetData() );
+                words.push_back( hws.GetData().GetNMer() );
             }
         }
     }
@@ -316,6 +316,41 @@ bool CReadData::PreScreen(
 }
 
 //------------------------------------------------------------------------------
+size_t CReadData::EstimateMemory(
+    CFastSeedsIndex const & fsidx, std::vector< TWord > & words )
+{
+    size_t default_frequency( 1ULL<<fsidx.cutoff_idx_ );
+
+    {
+        StopWatch sw( logger_ );
+        M_INFO( logger_, "number of words: " << words.size() );
+        M_INFO( logger_, "sorting words" );
+        std::sort( words.begin(), words.end() );
+    }
+
+    StopWatch sw( logger_ );
+    M_INFO( logger_, "estimating..." );
+    auto const & ftbl( fsidx.freq_table_ );
+    auto fi( ftbl.begin() ), fie( ftbl.end() );
+    size_t max_hits( 0  );
+
+    for( auto w : words )
+    {
+        for( ; fi != fie && fi->data.f.nmer < w; ++fi );
+
+        if( fi != fie )
+        {
+            if( fi->data.f.nmer == w ) max_hits += (1ULL<<(fi->data.f.freq));
+            else max_hits += default_frequency;
+        }
+        else max_hits += default_frequency;
+    }
+
+    words.clear();
+    return max_hits;
+}
+
+//------------------------------------------------------------------------------
 CReadData::CReadData( 
         CLogger & logger, CSeqInput & seqs,
         boost::dynamic_bitset< TWord > const * ws,
@@ -332,17 +367,18 @@ CReadData::CReadData(
     size_t i( 0 ),
            n_skipped( 0 ),
            n_screened( 0 ),
+           n_total( 0 ),
            mem_used( 0 ),
+           max_hits( 0 ),
            bases_read( 0 );
-    size_t default_frequency( (1ULL<<fsidx.cutoff_idx_)*STRUCT_HIT_BYTES );
     std::vector< TWord > words;
-    auto const & ftbl( fsidx.freq_table_ );
 
     CCounterProgress p( "reading input data", "reads", progress_flags );
     p.Start();
 
     for( auto && sd : seqs.Iterate() )
     {
+        ++n_total;
         bool long_read( false );
 
         for( size_t mi( 0 ), mie( std::min( (size_t)2, sd.GetNCols() ) );
@@ -384,42 +420,30 @@ CReadData::CReadData(
             }
         }
 
-        if( bases_read > LIM_BASES )
+        if( bases_read > LIM_BASES || i + 1 >= batch_size )
         {
-            std::sort( words.begin(), words.end() );
-            auto fi( ftbl.begin() ), fie( ftbl.end() );
-
-            for( auto w : words )
-            {
-                for( ; fi != fie && fi->data.d < w; ++fi );
-
-                if( fi != fie )
-                {
-                    HashWordSource::Data wd( w );
-
-                    if( fi->data.f.anchor == wd.GetAnchor() &&
-                        fi->data.f.word == wd.GetWord() )
-                    {
-                        mem_used += (1ULL<<(fi->data.f.freq))*STRUCT_HIT_BYTES;
-                    }
-                    else mem_used += default_frequency;
-                }
-                else mem_used += default_frequency;
-            }
-
-            words.clear();
+            max_hits += EstimateMemory( fsidx, words );
+            mem_used = max_hits*STRUCT_HIT_BYTES;
             bases_read = 0;
         }
 
         if( mem_used > mem_limit || ++i >= batch_size )
         {
+            M_INFO( logger_, "MEM ESTIMATE: " << mem_used << ' ' << mem_limit );
+            M_INFO( logger_, "MAX HITS: " << max_hits );
             break;
         }
 
         p.GetTop().Increment();
     }
 
+    max_hits += EstimateMemory( fsidx, words );
+    mem_used = max_hits*STRUCT_HIT_BYTES;
+    M_INFO( logger_, "MEM ESTIMATE: " << mem_used << ' ' << mem_limit );
+    M_INFO( logger_, "MAX HITS: " << max_hits );
+
     words.clear();
+    M_INFO( logger, n_total << "reads processed" );
     M_INFO( logger, n_skipped <<
                     " reads were skipped due to length restriction" );
     M_INFO( logger, n_screened <<
