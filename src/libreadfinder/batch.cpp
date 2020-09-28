@@ -53,25 +53,26 @@ CBatch::CBatch( CSearchContext & ctx, size_t batch_num )
     {
         static size_t const CFACTOR = 100;
 
-        size_t n_jobs( 0 );
+        // size_t n_jobs( 0 );
         auto n_threads( ctx_.n_threads );
         auto n_reads( reads_->GetNReads() );
 
         if( n_reads > n_threads*CFACTOR )
         {
             reads_per_job_ = n_reads/(n_threads*CFACTOR) + 1;
-            n_jobs = n_threads*CFACTOR;
+            // n_jobs = n_threads*CFACTOR;
         }
         else
         {
             reads_per_job_ = n_reads/n_threads + 1;
-            n_jobs = n_threads;
+            // n_jobs = n_threads;
         }
 
-        out_str_.resize( n_jobs, nullptr );
+        // out_str_.resize( n_jobs, nullptr );
     }
 }
 
+/*
 //------------------------------------------------------------------------------
 void CBatch::OutputThread()
 {
@@ -100,11 +101,13 @@ void CBatch::OutputThread()
 
     os << std::flush;
 }
+*/
 
 //------------------------------------------------------------------------------
 bool CBatch::RunSeeder()
 {
-    if( reads_->GetNReads() != 0 )
+    // if( reads_->GetNReads() != 0 )
+    for( ; reads_->GetStartOId() < reads_->GetNReads(); reads_->Update() )
     {
         CFastSeeds( *this ).Run();
         return true;

@@ -285,12 +285,13 @@ inline CFastSeeds::WordCountingJob::WordCountingJob(
 inline void CFastSeeds::WordCountingJob::operator()()
 {
     auto const & reads( o_.bctx_.GetReads() );
-    auto n_reads( reads.GetNReads() );
+    // auto n_reads( reads.GetNReads() );
+    auto n_reads( reads.GetEndOId() - reads.GetStartOId() );
 
     while( true )
     {
         uint32_t task_idx( task_idx_.fetch_add( 1 ) );
-        OrdId start_read( task_idx*n_reads_per_job_ ),
+        OrdId start_read( reads.GetStartOId() + task_idx*n_reads_per_job_ ),
               end_read( start_read + n_reads_per_job_ );
 
         if( start_read >= n_reads )
@@ -392,14 +393,16 @@ inline CFastSeeds::WordTableGeneratorJob::WordTableGeneratorJob(
 inline void CFastSeeds::WordTableGeneratorJob::operator()()
 {
     auto const & reads( o_.bctx_.GetReads() );
-    auto n_reads( reads.GetNReads() );
+    // auto n_reads( reads.GetNReads() );
+    auto n_reads( reads.GetEndOId() - reads.GetStartOId() );
     auto & wmap( wcj_data_.wmap );
     auto & wt( o_.wt_ );
     ph_.SetTotal( wcj_data_.tasks.size() );
 
     for( auto task_idx : wcj_data_.tasks )
     {
-        OrdId start_read( task_idx*n_reads_per_job_ ),
+        // OrdId start_read( task_idx*n_reads_per_job_ ),
+        OrdId start_read( reads.GetStartOId() + task_idx*n_reads_per_job_ ),
               end_read( start_read + n_reads_per_job_ );
         assert( start_read < n_reads );
 
@@ -1050,7 +1053,10 @@ inline void CFastSeeds::ComputeSeeds()
     {
         size_t reads_per_job( bctx_.GetJobSize() );
         assert( reads_per_job > 0 );
-        size_t n_jobs( bctx_.GetReads().GetNReads()/reads_per_job + 1 );
+        auto & reads( bctx_.GetReads() );
+        auto n_reads( reads.GetEndOId() - reads.GetStartOId() );
+        // size_t n_jobs( bctx_.GetReads().GetNReads()/reads_per_job + 1 );
+        size_t n_jobs( n_reads/reads_per_job + 1 );
         std::vector< Hits > filter_job_hits( n_jobs );
 
         // distribute hits accross jobs
@@ -1284,11 +1290,12 @@ void CFastSeeds::CreateWordTable()
     M_INFO( ctx.logger_, "generating read index" );
     auto n_threads( ctx.n_threads );
     size_t n_reads_per_job( DEFAULT_READS_PER_JOB );
+    size_t n_reads( reads.GetEndOId() - reads.GetStartOId() );
 
     // compute number of reads per job
     //
     {
-        size_t n_reads( reads.GetNReads() );
+        // size_t n_reads( reads.GetNReads() );
         n_reads_per_job = std::min( n_reads_per_job, n_reads/n_threads + 1U );
         M_INFO( ctx.logger_,
                 "using " << n_reads_per_job << " reads per job" );
@@ -1304,7 +1311,8 @@ void CFastSeeds::CreateWordTable()
         std::atomic< uint32_t > task_idx( 0 );
         CProgress p( "counting read words", "tasks", ctx.progress_flags_ );
         auto ph( p.GetTop() );
-        ph.SetTotal( reads.GetNReads() );
+        // ph.SetTotal( reads.GetNReads() );
+        ph.SetTotal( n_reads );
         CTaskArray< WordCountingJob > jobs(
                 n_threads, *this, wcj_data, task_idx, n_reads_per_job, 
                 job_idx, ph );

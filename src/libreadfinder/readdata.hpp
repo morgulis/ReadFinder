@@ -94,6 +94,9 @@ public:
     size_t GetNSingle() const;
     size_t GetNAmbigSeq() const;
 
+    OrdId GetStartOId() const { return start_oid_; }
+    OrdId GetEndOId() const { return end_oid_; }
+
 private:
 
     typedef std::vector< char > Ids;
@@ -136,8 +139,13 @@ public:
     SeqConstView GetMaskData( OrdId oid, EMate mate, EStrand strand ) const;
 
     TReadLen GetLen( OrdId oid, EMate mate ) const;
-    TReadLen GetATail( OrdId oid, EMate mate, EStrand strand ) const;
-    TReadLen GetTHead( OrdId oid, EMate mate, EStrand strand ) const;
+    // TReadLen GetATail( OrdId oid, EMate mate, EStrand strand ) const;
+    // TReadLen GetTHead( OrdId oid, EMate mate, EStrand strand ) const;
+
+    void Update()
+    {
+        start_oid_ = end_oid_;
+    }
 
     char const * GetReadId( OrdId oid ) const;
 
@@ -176,6 +184,8 @@ private:
     MaskCache mask_cache_;
     size_t n_seq_ = 0,
            n_ambig_seq_ = 0;
+    OrdId start_oid_ = 0,
+          end_oid_ = 0;
 };
 
 //==============================================================================
@@ -502,6 +512,7 @@ inline TReadLen CReadData::GetLen( OrdId oid, EMate mate ) const
     return reads_[oid].mates_[FromMate( mate )].len;
 }
 
+/*
 //------------------------------------------------------------------------------
 inline TReadLen CReadData::GetATail( 
         OrdId oid, EMate mate, EStrand strand ) const
@@ -515,6 +526,7 @@ inline TReadLen CReadData::GetTHead(
 {
     return reads_[oid].mates_[FromMate( mate )].A_tail[2 - strand];
 }
+*/
 
 //------------------------------------------------------------------------------
 inline char const * CReadData::GetReadId( OrdId oid ) const

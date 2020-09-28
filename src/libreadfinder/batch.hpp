@@ -63,11 +63,11 @@ private:
 
     static std::vector< std::string > const BatchStatDescriptions;
 
-    void OutputThread();
+    // void OutputThread();
 
     CSearchContext & ctx_;
     std::unique_ptr< CReadData > reads_;
-    OutStr out_str_;
+    // OutStr out_str_;
     std::mutex out_mtx_;
     std::condition_variable out_cvar_;
     size_t reads_per_job_;

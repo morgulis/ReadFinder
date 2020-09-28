@@ -222,6 +222,7 @@ auto CReadData::AddSeqData(
     mem_used += AppendData(
         oid, iupac, strand, FromMate( mate ), fsidx, words );
     bases_read += iupac.size();
+    end_oid_ = reads_.size();
     return i->ordid;
 }
 
