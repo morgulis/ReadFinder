@@ -83,10 +83,6 @@ public:
         {
             struct
             {
-                /*
-                uint64_t word   : WORD_BITS;
-                uint64_t anchor : ANCHOR_BITS;
-                */
                 uint64_t nmer   : NMER_BITS;
                 uint64_t freq   : 8;
             } f;
@@ -106,6 +102,11 @@ public:
             FreqTableEntry const & x, FreqTableEntry const & y )
         {
             return x.data.f.nmer < y.data.f.nmer;
+        }
+
+        friend bool operator<( FreqTableEntry const & x, TWord word )
+        {
+            return x.data.f.nmer < word;
         }
     };
 };
