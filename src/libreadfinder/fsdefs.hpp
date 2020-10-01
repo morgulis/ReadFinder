@@ -77,6 +77,24 @@ protected:
 
 public:
 
+    struct HashWord
+    {
+        WordData wd;
+        OrdId readid;
+        TReadOff hashoff;
+        EStrand strand;
+        EMate mate;
+
+        friend std::ostream & operator<<(
+                std::ostream & os, HashWord const & hw )
+        {
+            return os << "{ wd: " << hw.wd << "; read: " << hw.readid
+                      << "; hoff: " << hw.hashoff
+                      << "; strand: " << (int)hw.strand
+                      << "; mate: " << (int)hw.mate << " }";
+        }
+    };
+
     struct FreqTableEntry
     {
         union

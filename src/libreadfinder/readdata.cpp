@@ -224,7 +224,6 @@ auto CReadData::AddSeqData(
     mem_used += AppendData(
         oid, iupac, strand, FromMate( mate ), fsidx, words );
     bases_read += iupac.size();
-    end_oid_ = reads_.size();
     return i->ordid;
 }
 
@@ -319,7 +318,7 @@ bool CReadData::PreScreen(
 }
 
 //------------------------------------------------------------------------------
-size_t CReadData::EstimateMemory(
+void CReadData::EstimateMemory(
     CFastSeedsIndex const & fsidx, Words & words )
 {
     word_freq_.resize( GetNReads(), 0 );
@@ -329,7 +328,6 @@ size_t CReadData::EstimateMemory(
 
     {
         StopWatch sw( logger_ );
-        M_INFO( logger_, "number of words: " << words.size() );
         M_INFO( logger_, "sorting words and estimating hits" );
 
         for( TWord sfx( 0 ); sfx < N_WORD_SETS; ++sfx )
@@ -366,10 +364,35 @@ size_t CReadData::EstimateMemory(
             }
         }
     }
+}
 
-    size_t result( 0 );
-    for( auto f : word_freq_ ) result += f;
-    return result;
+//------------------------------------------------------------------------------
+static constexpr size_t const STRUCT_HIT_BYTES = 12ULL;
+
+void CReadData::Update()
+{
+    start_oid_ = end_oid_;
+    if( start_oid_ >= GetNReads() ) return;
+    M_INFO( logger_, "creating sub-batch with memory limit " << mem_limit_ );
+    size_t mem_used( 0 ), max_hits( 0 );
+
+    for( auto end( GetNReads() ); end_oid_ < end; ++end_oid_ )
+    {
+        auto const & read( reads_[end_oid_] );
+        size_t hits( word_freq_[end_oid_] ),
+               mem( hits*STRUCT_HIT_BYTES );
+        mem += 2*sizeof( CFastSeedsDefs::HashWord )*
+               (read.mates_[0].len + read.mates_[1].len);
+        if( mem_used + mem > mem_limit_ ) break;
+        mem_used += mem;
+        max_hits += hits;
+    }
+
+    M_INFO( logger_, "MAX HITS: " << max_hits );
+    M_INFO( logger_, "MEM: " << mem_used << "; limit: " << mem_limit_ );
+    M_INFO( logger_, "sub-batch: [" << start_oid_ << ", " << end_oid_ << ']' );
+
+    if( end_oid_ == start_oid_ ) M_THROW( "out of memory" );
 }
 
 //------------------------------------------------------------------------------
@@ -383,16 +406,13 @@ CReadData::CReadData(
       mask_cache_( 1 + std::numeric_limits< TReadLen >::max(), -1 )
 {
     static constexpr size_t const MAX_READ_LEN = 32*1024;
-    static constexpr size_t const LIM_BASES = 20*1024*1024ULL;
-    // static constexpr size_t const LIM_BASES = 200*1024*1024ULL;
-    static constexpr size_t const STRUCT_HIT_BYTES = 12ULL;
+    static constexpr size_t const LIM_BASES = 200*1024*1024ULL;
 
     size_t i( 0 ),
            n_skipped( 0 ),
            n_screened( 0 ),
            n_total( 0 ),
            mem_used( 0 ),
-           max_hits( 0 ),
            bases_read( 0 );
     Words words( N_WORD_SETS );
 
@@ -445,30 +465,27 @@ CReadData::CReadData(
 
         if( bases_read > LIM_BASES || i + 1 >= batch_size )
         {
-            max_hits = EstimateMemory( fsidx, words );
-            mem_used = max_hits*STRUCT_HIT_BYTES;
+            EstimateMemory( fsidx, words );
             bases_read = 0;
             words.clear();
             words.resize( N_WORD_SETS );
         }
 
-        if( mem_used > mem_limit || ++i >= batch_size )
+        if( 4*mem_used > mem_limit || ++i >= batch_size )
         {
             M_INFO( logger_, "MEM ESTIMATE: " << mem_used << ' ' << mem_limit );
-            M_INFO( logger_, "MAX HITS: " << max_hits );
             break;
         }
 
         p.GetTop().Increment();
     }
 
-    max_hits = EstimateMemory( fsidx, words );
-    mem_used = max_hits*STRUCT_HIT_BYTES;
+    EstimateMemory( fsidx, words );
+    mem_limit_ = mem_limit - mem_used;
     M_INFO( logger_, "MEM ESTIMATE: " << mem_used << ' ' << mem_limit );
-    M_INFO( logger_, "MAX HITS: " << max_hits );
 
     words.clear();
-    M_INFO( logger, n_total << "reads processed" );
+    M_INFO( logger, n_total << " reads processed" );
     M_INFO( logger, n_skipped <<
                     " reads were skipped due to length restriction" );
     M_INFO( logger, n_screened <<

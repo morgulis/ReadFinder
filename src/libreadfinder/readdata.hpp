@@ -161,11 +161,7 @@ public:
     SeqConstView GetMaskData( OrdId oid, EMate mate, EStrand strand ) const;
 
     TReadLen GetLen( OrdId oid, EMate mate ) const;
-
-    void Update()
-    {
-        start_oid_ = end_oid_;
-    }
+    void Update();
 
     char const * GetReadId( OrdId oid ) const;
 
@@ -190,7 +186,7 @@ private:
     bool PreScreen(
         boost::dynamic_bitset< TWord > const & ws, std::string const & iupac );
 
-    size_t EstimateMemory( CFastSeedsIndex const & fsidx, Words & words );
+    void EstimateMemory( CFastSeedsIndex const & fsidx, Words & words );
 
     std::unique_ptr< IdSet > idset_;
 
@@ -205,6 +201,7 @@ private:
     OrdId start_oid_ = 0,
           end_oid_ = 0;
     std::deque< uint32_t > word_freq_;
+    size_t mem_limit_ = 0;
 };
 
 //==============================================================================

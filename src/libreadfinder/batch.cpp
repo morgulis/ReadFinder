@@ -53,67 +53,32 @@ CBatch::CBatch( CSearchContext & ctx, size_t batch_num )
     {
         static size_t const CFACTOR = 100;
 
-        // size_t n_jobs( 0 );
         auto n_threads( ctx_.n_threads );
         auto n_reads( reads_->GetNReads() );
 
         if( n_reads > n_threads*CFACTOR )
         {
             reads_per_job_ = n_reads/(n_threads*CFACTOR) + 1;
-            // n_jobs = n_threads*CFACTOR;
         }
         else
         {
             reads_per_job_ = n_reads/n_threads + 1;
-            // n_jobs = n_threads;
-        }
-
-        // out_str_.resize( n_jobs, nullptr );
-    }
-}
-
-/*
-//------------------------------------------------------------------------------
-void CBatch::OutputThread()
-{
-    auto & os( ctx_.GetOutStream() );
-
-    for( size_t start_job( 0 ), end_job( 0 ); end_job < out_str_.size(); )
-    {
-        {
-            std::unique_lock< std::mutex > lock( out_mtx_ );
-            for( ; end_job < out_str_.size() && out_str_[end_job] != nullptr;
-                   ++end_job );
-
-            if( end_job == start_job )
-            {
-                out_cvar_.wait_for( lock, std::chrono::seconds( 1 ) );
-            }
-        }
-
-        for( ; start_job < end_job; ++start_job )
-        {
-            os << *out_str_[start_job];
-            delete out_str_[start_job];
-            out_str_[start_job] = nullptr;
         }
     }
-
-    os << std::flush;
 }
-*/
 
 //------------------------------------------------------------------------------
 bool CBatch::RunSeeder()
 {
-    // if( reads_->GetNReads() != 0 )
-    for( ; reads_->GetStartOId() < reads_->GetNReads(); reads_->Update() )
+    if( reads_->GetNReads() == 0 ) return false;
+
+    for( reads_->Update();
+            reads_->GetStartOId() < reads_->GetNReads(); reads_->Update() )
     {
         CFastSeeds( *this ).Run();
-        return true;
     }
 
-    return false;
+    return true;
 }
 
 READFINDER_NS_END
