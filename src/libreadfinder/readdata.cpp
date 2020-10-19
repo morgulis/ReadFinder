@@ -31,6 +31,7 @@
 #include <libreadfinder/readdata.hpp>
 
 #include <libtools/progress.hpp>
+#include <libtools/taskarray.hpp>
 
 READFINDER_NS_BEGIN
 
@@ -317,6 +318,80 @@ bool CReadData::PreScreen(
     return false;
 }
 
+//==============================================================================
+struct CReadData::MemoryEstimator
+{
+    typedef std::vector< uint32_t > Data;
+
+    MemoryEstimator(
+        CLogger & logger, std::vector< Data > & job_data, Words & words,
+        std::vector< CFastSeedsDefs::FreqTableEntry > const & ftbl,
+        size_t default_frequency, std::atomic< TWord > & task_idx,
+        size_t & job_idx );
+
+    void operator()();
+
+    CLogger & logger_;
+    Data & data_;
+    Words & words_;
+    std::vector< CFastSeedsDefs::FreqTableEntry > const & ftbl_;
+    size_t default_frequency_;
+    std::atomic< TWord > & task_idx_;
+};
+
+//------------------------------------------------------------------------------
+CReadData::MemoryEstimator::MemoryEstimator(
+    CLogger & logger, std::vector< Data > & job_data, Words & words,
+    std::vector< CFastSeedsDefs::FreqTableEntry > const & ftbl,
+    size_t default_frequency, std::atomic< TWord > & task_idx,
+    size_t & job_idx )
+    :   logger_( logger ), data_( job_data[job_idx++] ), words_( words ),
+        ftbl_( ftbl ), default_frequency_( default_frequency ),
+        task_idx_( task_idx )
+{
+}
+
+//------------------------------------------------------------------------------
+void CReadData::MemoryEstimator::operator()()
+{
+    while( true )
+    {
+        TWord task_idx( task_idx_.fetch_add( 1 ) );
+        if( task_idx >= N_WORD_SETS ) break;
+        auto & ws( words_[task_idx] );
+        auto anchor( task_idx<<WordData::WORD_BITS );
+
+        if( !ws.empty() )
+        {
+            auto fi( ftbl_.begin() ), fie( ftbl_.end() );
+            std::sort(
+                ws.begin(), ws.end(),
+                []( WordData const & x, WordData const & y )
+                { return x.word < y.word; } );
+            auto i( std::lower_bound( fi, fie, anchor + ws.begin()->word ) );
+
+            for( auto wi( ws.begin() ), wie( ws.end() ); wi != wie; )
+            {
+                auto w( wi->word );
+                auto nmer( anchor + w );
+                auto f( default_frequency_ );
+                for( ; i != fie && *i < nmer; ++i );
+
+                if( i != fie && i->data.f.nmer == nmer )
+                {
+                    f = (1ULL<<i->data.f.freq);
+                }
+
+                for( ; wi != wie && wi->word == w; ++wi )
+                {
+                    data_[wi->oid] += f;
+                }
+            }
+        }
+    }
+}
+//==============================================================================
+
 //------------------------------------------------------------------------------
 void CReadData::EstimateMemory(
     CFastSeedsIndex const & fsidx, Words & words )
@@ -325,43 +400,25 @@ void CReadData::EstimateMemory(
     size_t default_frequency( 1ULL<<fsidx.cutoff_idx_ );
     auto const & ftbl( fsidx.freq_table_ );
     auto fi( ftbl.begin() ), fie( ftbl.end() );
+    std::vector< MemoryEstimator::Data > job_data( n_threads_ );
 
     {
-        StopWatch sw( logger_ );
         M_INFO( logger_, "sorting words and estimating hits" );
+        StopWatch sw( logger_ );
+        for( auto & data : job_data ) data.resize( GetNReads(), 0 );
+        std::atomic< TWord > task_idx( 0 );
+        size_t job_idx( 0 );
+        CTaskArray< MemoryEstimator > jobs(
+            n_threads_, logger_, job_data, words, ftbl, default_frequency,
+            task_idx, job_idx );
+        jobs.Start();
+    }
 
-        for( TWord sfx( 0 ); sfx < N_WORD_SETS; ++sfx )
+    for( auto const & data : job_data )
+    {
+        for( size_t i( 0 ), ie( GetNReads() ); i < ie; ++i )
         {
-            auto & ws( words[sfx] );
-            auto anchor( sfx<<WordData::WORD_BITS );
-
-            if( !ws.empty() )
-            {
-                std::sort(
-                    ws.begin(), ws.end(),
-                    []( WordData const & x, WordData const & y )
-                    { return x.word < y.word; } );
-                auto i( std::lower_bound(
-                    fi, fie, anchor + ws.begin()->word ) );
-
-                for( auto wi( ws.begin() ), wie( ws.end() ); wi != wie; )
-                {
-                    auto w( wi->word );
-                    auto nmer( anchor + w );
-                    auto f( default_frequency );
-                    for( ; i != fie && *i < nmer; ++i );
-
-                    if( i != fie && i->data.f.nmer == nmer )
-                    {
-                        f = (1ULL<<i->data.f.freq);
-                    }
-
-                    for( ; wi != wie && wi->word == w; ++wi )
-                    {
-                        word_freq_[wi->oid] += f;
-                    }
-                }
-            }
+            word_freq_[i] += data[i];
         }
     }
 }
@@ -400,10 +457,12 @@ CReadData::CReadData(
         CLogger & logger, CSeqInput & seqs,
         boost::dynamic_bitset< TWord > const * ws,
         CFastSeedsIndex const & fsidx,
-        size_t batch_size, size_t mem_limit, int progress_flags
+        size_t batch_size, size_t mem_limit, size_t n_threads,
+        int progress_flags
     )
     : logger_( logger ),
-      mask_cache_( 1 + std::numeric_limits< TReadLen >::max(), -1 )
+      mask_cache_( 1 + std::numeric_limits< TReadLen >::max(), -1 ),
+      n_threads_( n_threads )
 {
     static constexpr size_t const MAX_READ_LEN = 32*1024;
     static constexpr size_t const LIM_BASES = 200*1024*1024ULL;

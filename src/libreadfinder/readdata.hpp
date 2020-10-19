@@ -94,6 +94,7 @@ public:
                CFastSeedsIndex const & fsidx,
                size_t batch_size,
                size_t mem_limit,
+               size_t n_threads,
                int progress_flags = 0
              );
 
@@ -175,6 +176,8 @@ private:
 
     typedef std::vector< ssize_t > MaskCache;
 
+    struct MemoryEstimator;
+
     size_t AppendData(
         OrdId oid, std::string const & iupac,
         EStrand strand, uint8_t mate_idx,
@@ -202,6 +205,7 @@ private:
           end_oid_ = 0;
     std::deque< uint32_t > word_freq_;
     size_t mem_limit_ = 0;
+    size_t n_threads_ = 0;
 };
 
 //==============================================================================

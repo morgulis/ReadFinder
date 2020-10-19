@@ -43,7 +43,7 @@ CBatch::CBatch( CSearchContext & ctx, size_t batch_num )
                              ctx_.batch,
                              (ctx_.used_mem_bytes < ctx_.max_mem_bytes ?
                                 ctx_.max_mem_bytes - ctx_.used_mem_bytes : 0),
-                             ctx_.progress_flags_ ) ),
+                             ctx_.n_threads, ctx_.progress_flags_ ) ),
       batch_num_( batch_num )
 {
     ctx_.n_reads += reads_->GetNReads();
