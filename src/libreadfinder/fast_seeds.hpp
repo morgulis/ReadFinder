@@ -30,6 +30,8 @@
 #ifndef LIBREADFINDER_FAST_SEEDS_HPP
 #define LIBREADFINDER_FAST_SEEDS_HPP
 
+#include <deque>
+
 #include <boost/dynamic_bitset.hpp>
 
 #include <config.h>
@@ -59,24 +61,6 @@ private:
     //--------------------------------------------------------------------------
     struct WordTableGeneratorJob;
     struct WordTableSortJob;
-
-    struct HashWord
-    {
-        WordData wd;
-        OrdId readid;
-        TReadOff hashoff;
-        EStrand strand;
-        EMate mate;
-
-        friend std::ostream & operator<<(
-                std::ostream & os, HashWord const & hw )
-        {
-            return os << "{ wd: " << hw.wd << "; read: " << hw.readid
-                      << "; hoff: " << hw.hashoff
-                      << "; strand: " << (int)hw.strand
-                      << "; mate: " << (int)hw.mate << " }";
-        }
-    };
 
     static_assert( sizeof( HashWord ) == 12, "" );
 
@@ -131,7 +115,7 @@ private:
 
     static_assert( sizeof( Hit ) == 12, "" );
 
-    typedef std::vector< Hit > Hits;
+    typedef std::deque< Hit > Hits;
     typedef HashWord TaskEntry;
 
     struct HitFilteringJob;

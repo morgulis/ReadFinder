@@ -77,24 +77,54 @@ protected:
 
 public:
 
+    struct HashWord
+    {
+        WordData wd;
+        OrdId readid;
+        TReadOff hashoff;
+        EStrand strand;
+        EMate mate;
+
+        friend std::ostream & operator<<(
+                std::ostream & os, HashWord const & hw )
+        {
+            return os << "{ wd: " << hw.wd << "; read: " << hw.readid
+                      << "; hoff: " << hw.hashoff
+                      << "; strand: " << (int)hw.strand
+                      << "; mate: " << (int)hw.mate << " }";
+        }
+    };
+
     struct FreqTableEntry
     {
         union
         {
             struct
             {
-                uint64_t word   : WORD_BITS;
-                uint64_t anchor : ANCHOR_BITS;
+                uint64_t nmer   : NMER_BITS;
                 uint64_t freq   : 8;
             } f;
 
             uint64_t d;
         } data;
 
+        FreqTableEntry() {}
+
+        FreqTableEntry( uint64_t anchor, uint64_t word, uint64_t f = 0 )
+        {
+            data.f.nmer = (anchor<<WORD_BITS) + word;
+            data.f.freq = f;
+        }
+
         friend bool operator<(
             FreqTableEntry const & x, FreqTableEntry const & y )
         {
-            return x.data.d < y.data.d;
+            return x.data.f.nmer < y.data.f.nmer;
+        }
+
+        friend bool operator<( FreqTableEntry const & x, TWord word )
+        {
+            return x.data.f.nmer < word;
         }
     };
 };

@@ -31,6 +31,7 @@
 #include <libreadfinder/readdata.hpp>
 
 #include <libtools/progress.hpp>
+#include <libtools/taskarray.hpp>
 
 READFINDER_NS_BEGIN
 
@@ -69,7 +70,7 @@ inline void CReadData::ExtendBuffers( size_t len )
 
 //------------------------------------------------------------------------------
 inline void CReadData::CollectWords(
-    OrdId oid, uint8_t mate_idx, std::vector< TWord > & words )
+    OrdId oid, uint8_t mate_idx, Words & words )
 {
     for( EStrand s : { eFWD, eREV } )
     {
@@ -84,7 +85,9 @@ inline void CReadData::CollectWords(
 
             if( GetNSet( hms.GetNMer() ) == 0 )
             {
-                words.push_back( hws.GetData().GetData() );
+                auto w( hws.GetData().GetNMer() );
+                words[w>>WordData::WORD_BITS].push_back(
+                    WordData{ (uint32_t)(w&WordData::WORD_MASK), oid } );
             }
         }
     }
@@ -94,7 +97,7 @@ inline void CReadData::CollectWords(
 inline size_t CReadData::AppendData( 
         OrdId oid, std::string const & iupac, 
         EStrand strand, uint8_t mate_idx, CFastSeedsIndex const & fsidx,
-        std::vector< TWord > & words )
+        Words & words )
 {
     size_t mem_used( 0 );
     typedef CFixedConstSeqView< eIUPACNA, uint8_t > SrcView;
@@ -181,8 +184,8 @@ inline size_t CReadData::AppendData(
 auto CReadData::AddSeqData( 
         std::string const & id, std::string const & iupac, 
         EStrand strand, EMate mate, bool read_is_paired,
-        size_t & bases_read, size_t & mem_used, std::vector< TWord > & words,
-        CFastSeedsIndex const & fsidx
+        size_t & bases_read, size_t & mem_used,
+        Words & words, CFastSeedsIndex const & fsidx
     ) -> OrdId
 {
     if( !idset_ )
@@ -315,34 +318,169 @@ bool CReadData::PreScreen(
     return false;
 }
 
+//==============================================================================
+struct CReadData::MemoryEstimator
+{
+    typedef std::vector< uint32_t > Data;
+
+    MemoryEstimator(
+        CLogger & logger, std::vector< Data > & job_data, Words & words,
+        std::vector< CFastSeedsDefs::FreqTableEntry > const & ftbl,
+        size_t default_frequency, std::atomic< TWord > & task_idx,
+        size_t & job_idx );
+
+    void operator()();
+
+    CLogger & logger_;
+    Data & data_;
+    Words & words_;
+    std::vector< CFastSeedsDefs::FreqTableEntry > const & ftbl_;
+    size_t default_frequency_;
+    std::atomic< TWord > & task_idx_;
+};
+
+//------------------------------------------------------------------------------
+CReadData::MemoryEstimator::MemoryEstimator(
+    CLogger & logger, std::vector< Data > & job_data, Words & words,
+    std::vector< CFastSeedsDefs::FreqTableEntry > const & ftbl,
+    size_t default_frequency, std::atomic< TWord > & task_idx,
+    size_t & job_idx )
+    :   logger_( logger ), data_( job_data[job_idx++] ), words_( words ),
+        ftbl_( ftbl ), default_frequency_( default_frequency ),
+        task_idx_( task_idx )
+{
+}
+
+//------------------------------------------------------------------------------
+void CReadData::MemoryEstimator::operator()()
+{
+    while( true )
+    {
+        TWord task_idx( task_idx_.fetch_add( 1 ) );
+        if( task_idx >= N_WORD_SETS ) break;
+        auto & ws( words_[task_idx] );
+        auto anchor( task_idx<<WordData::WORD_BITS );
+
+        if( !ws.empty() )
+        {
+            auto fi( ftbl_.begin() ), fie( ftbl_.end() );
+            std::sort(
+                ws.begin(), ws.end(),
+                []( WordData const & x, WordData const & y )
+                { return x.word < y.word; } );
+            auto i( std::lower_bound( fi, fie, anchor + ws.begin()->word ) );
+
+            for( auto wi( ws.begin() ), wie( ws.end() ); wi != wie; )
+            {
+                auto w( wi->word );
+                auto nmer( anchor + w );
+                auto f( default_frequency_ );
+                for( ; i != fie && *i < nmer; ++i );
+
+                if( i != fie && i->data.f.nmer == nmer )
+                {
+                    f = (1ULL<<i->data.f.freq);
+                }
+
+                for( ; wi != wie && wi->word == w; ++wi )
+                {
+                    data_[wi->oid] += f;
+                }
+            }
+        }
+    }
+}
+//==============================================================================
+
+//------------------------------------------------------------------------------
+void CReadData::EstimateMemory(
+    CFastSeedsIndex const & fsidx, Words & words )
+{
+    word_freq_.resize( GetNReads(), 0 );
+    size_t default_frequency( 1ULL<<fsidx.cutoff_idx_ );
+    auto const & ftbl( fsidx.freq_table_ );
+    auto fi( ftbl.begin() ), fie( ftbl.end() );
+    std::vector< MemoryEstimator::Data > job_data( n_threads_ );
+
+    {
+        M_INFO( logger_, "sorting words and estimating hits" );
+        StopWatch sw( logger_ );
+        for( auto & data : job_data ) data.resize( GetNReads(), 0 );
+        std::atomic< TWord > task_idx( 0 );
+        size_t job_idx( 0 );
+        CTaskArray< MemoryEstimator > jobs(
+            n_threads_, logger_, job_data, words, ftbl, default_frequency,
+            task_idx, job_idx );
+        jobs.Start();
+    }
+
+    for( auto const & data : job_data )
+    {
+        for( size_t i( 0 ), ie( GetNReads() ); i < ie; ++i )
+        {
+            word_freq_[i] += data[i];
+        }
+    }
+}
+
+//------------------------------------------------------------------------------
+static constexpr size_t const STRUCT_HIT_BYTES = 12ULL;
+
+void CReadData::Update()
+{
+    start_oid_ = end_oid_;
+    if( start_oid_ >= GetNReads() ) return;
+    M_INFO( logger_, "creating sub-batch with memory limit " << mem_limit_ );
+    size_t mem_used( 0 ), max_hits( 0 );
+
+    for( auto end( GetNReads() ); end_oid_ < end; ++end_oid_ )
+    {
+        auto const & read( reads_[end_oid_] );
+        size_t hits( word_freq_[end_oid_] ),
+               mem( hits*STRUCT_HIT_BYTES );
+        mem += 2*sizeof( CFastSeedsDefs::HashWord )*
+               (read.mates_[0].len + read.mates_[1].len);
+        if( mem_used + mem > mem_limit_ ) break;
+        mem_used += mem;
+        max_hits += hits;
+    }
+
+    M_INFO( logger_, "MAX HITS: " << max_hits );
+    M_INFO( logger_, "MEM: " << mem_used << "; limit: " << mem_limit_ );
+    M_INFO( logger_, "sub-batch: [" << start_oid_ << ", " << end_oid_ << ']' );
+
+    if( end_oid_ == start_oid_ ) M_THROW( "out of memory" );
+}
+
 //------------------------------------------------------------------------------
 CReadData::CReadData( 
         CLogger & logger, CSeqInput & seqs,
         boost::dynamic_bitset< TWord > const * ws,
         CFastSeedsIndex const & fsidx,
-        size_t batch_size, size_t mem_limit, int progress_flags
+        size_t batch_size, size_t mem_limit, size_t n_threads,
+        int progress_flags
     )
     : logger_( logger ),
-      mask_cache_( 1 + std::numeric_limits< TReadLen >::max(), -1 )
+      mask_cache_( 1 + std::numeric_limits< TReadLen >::max(), -1 ),
+      n_threads_( n_threads )
 {
     static constexpr size_t const MAX_READ_LEN = 32*1024;
-    static constexpr size_t const LIM_BASES = 20*1024*1024ULL;
-    static constexpr size_t const STRUCT_HIT_BYTES = 12ULL;
+    static constexpr size_t const LIM_BASES = 200*1024*1024ULL;
 
     size_t i( 0 ),
            n_skipped( 0 ),
            n_screened( 0 ),
+           n_total( 0 ),
            mem_used( 0 ),
            bases_read( 0 );
-    size_t default_frequency( (1ULL<<fsidx.cutoff_idx_)*STRUCT_HIT_BYTES );
-    std::vector< TWord > words;
-    auto const & ftbl( fsidx.freq_table_ );
+    Words words( N_WORD_SETS );
 
     CCounterProgress p( "reading input data", "reads", progress_flags );
     p.Start();
 
     for( auto && sd : seqs.Iterate() )
     {
+        ++n_total;
         bool long_read( false );
 
         for( size_t mi( 0 ), mie( std::min( (size_t)2, sd.GetNCols() ) );
@@ -384,42 +522,29 @@ CReadData::CReadData(
             }
         }
 
-        if( bases_read > LIM_BASES )
+        if( bases_read > LIM_BASES || i + 1 >= batch_size )
         {
-            std::sort( words.begin(), words.end() );
-            auto fi( ftbl.begin() ), fie( ftbl.end() );
-
-            for( auto w : words )
-            {
-                for( ; fi != fie && fi->data.d < w; ++fi );
-
-                if( fi != fie )
-                {
-                    HashWordSource::Data wd( w );
-
-                    if( fi->data.f.anchor == wd.GetAnchor() &&
-                        fi->data.f.word == wd.GetWord() )
-                    {
-                        mem_used += (1ULL<<(fi->data.f.freq))*STRUCT_HIT_BYTES;
-                    }
-                    else mem_used += default_frequency;
-                }
-                else mem_used += default_frequency;
-            }
-
-            words.clear();
+            EstimateMemory( fsidx, words );
             bases_read = 0;
+            words.clear();
+            words.resize( N_WORD_SETS );
         }
 
-        if( mem_used > mem_limit || ++i >= batch_size )
+        if( 4*mem_used > mem_limit || ++i >= batch_size )
         {
+            M_INFO( logger_, "MEM ESTIMATE: " << mem_used << ' ' << mem_limit );
             break;
         }
 
         p.GetTop().Increment();
     }
 
+    EstimateMemory( fsidx, words );
+    mem_limit_ = mem_limit - mem_used;
+    M_INFO( logger_, "MEM ESTIMATE: " << mem_used << ' ' << mem_limit );
+
     words.clear();
+    M_INFO( logger, n_total << " reads processed" );
     M_INFO( logger, n_skipped <<
                     " reads were skipped due to length restriction" );
     M_INFO( logger, n_screened <<

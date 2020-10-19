@@ -31,6 +31,7 @@
 #define LIBREADFINDER_READDATA_HPP
 
 #include <cstring>
+#include <deque>
 #include <memory>
 #include <set>
 #include <vector>
@@ -59,6 +60,27 @@ private:
 
     class Reads;
 
+    struct WordData
+    {
+        static constexpr size_t const ANCHOR_BITS = 14;
+        static constexpr size_t const NMER_BITS =
+            LB*CFastSeedsDefs::NMER_BASES;
+        static constexpr size_t const WORD_BITS = NMER_BITS - ANCHOR_BITS;
+        static constexpr TWord const WORD_MASK = (1ULL<<WORD_BITS) - 1;
+
+        static_assert( WORD_BITS <= BYTE_BITS*sizeof( uint32_t ), "" );
+
+        uint32_t word,
+                 oid;
+    };
+
+    typedef std::deque< WordData > WordSet;
+    typedef std::vector< WordSet > Words;
+
+    static constexpr size_t const N_WORD_SETS = (1ULL<<WordData::ANCHOR_BITS);
+
+    static_assert( sizeof( WordData ) == 8, "" );
+
 public:
 
     class HashWordSource;
@@ -72,6 +94,7 @@ public:
                CFastSeedsIndex const & fsidx,
                size_t batch_size,
                size_t mem_limit,
+               size_t n_threads,
                int progress_flags = 0
              );
 
@@ -80,7 +103,7 @@ public:
                       EStrand strand,
                       EMate mate, bool read_is_paired,
                       size_t & bases_read, size_t & mem_used,
-                      std::vector< TWord > & words,
+                      Words & words,
                       CFastSeedsIndex const & fsidx
                     );
 
@@ -93,6 +116,9 @@ public:
     size_t GetNPaired() const;
     size_t GetNSingle() const;
     size_t GetNAmbigSeq() const;
+
+    OrdId GetStartOId() const { return start_oid_; }
+    OrdId GetEndOId() const { return end_oid_; }
 
 private:
 
@@ -136,8 +162,7 @@ public:
     SeqConstView GetMaskData( OrdId oid, EMate mate, EStrand strand ) const;
 
     TReadLen GetLen( OrdId oid, EMate mate ) const;
-    TReadLen GetATail( OrdId oid, EMate mate, EStrand strand ) const;
-    TReadLen GetTHead( OrdId oid, EMate mate, EStrand strand ) const;
+    void Update();
 
     char const * GetReadId( OrdId oid ) const;
 
@@ -151,17 +176,20 @@ private:
 
     typedef std::vector< ssize_t > MaskCache;
 
+    struct MemoryEstimator;
+
     size_t AppendData(
         OrdId oid, std::string const & iupac,
         EStrand strand, uint8_t mate_idx,
-        CFastSeedsIndex const & fsidx, std::vector< TWord > & words );
-    void CollectWords(
-        OrdId oid, uint8_t mate_idx, std::vector< TWord > & words );
+        CFastSeedsIndex const & fsidx, Words & words );
+    void CollectWords( OrdId oid, uint8_t mate_idx, Words & words );
     void ExtendBuffers( size_t len );
     void ExtendBuffer( size_t len );
 
     bool PreScreen(
         boost::dynamic_bitset< TWord > const & ws, std::string const & iupac );
+
+    void EstimateMemory( CFastSeedsIndex const & fsidx, Words & words );
 
     std::unique_ptr< IdSet > idset_;
 
@@ -173,6 +201,11 @@ private:
     MaskCache mask_cache_;
     size_t n_seq_ = 0,
            n_ambig_seq_ = 0;
+    OrdId start_oid_ = 0,
+          end_oid_ = 0;
+    std::deque< uint32_t > word_freq_;
+    size_t mem_limit_ = 0;
+    size_t n_threads_ = 0;
 };
 
 //==============================================================================
@@ -194,6 +227,7 @@ private:
     {
         uint64_t GetWord() const { return f.word; }
         uint64_t GetAnchor() const { return f.anchor; }
+        uint64_t GetNMer() const { return (GetAnchor()<<WORD_BITS) + GetWord(); }
         TWord GetData() const { return w; }
 
         union
@@ -496,20 +530,6 @@ inline auto CReadData::GetMaskData(
 inline TReadLen CReadData::GetLen( OrdId oid, EMate mate ) const
 {
     return reads_[oid].mates_[FromMate( mate )].len;
-}
-
-//------------------------------------------------------------------------------
-inline TReadLen CReadData::GetATail( 
-        OrdId oid, EMate mate, EStrand strand ) const
-{
-    return reads_[oid].mates_[FromMate( mate )].A_tail[strand - 1];
-}
-
-//------------------------------------------------------------------------------
-inline TReadLen CReadData::GetTHead( 
-        OrdId oid, EMate mate, EStrand strand ) const
-{
-    return reads_[oid].mates_[FromMate( mate )].A_tail[2 - strand];
 }
 
 //------------------------------------------------------------------------------

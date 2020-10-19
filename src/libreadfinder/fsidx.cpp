@@ -618,8 +618,6 @@ inline void CFastSeedsIndex::CreateFreqTableJob::operator()()
     {
         uint32_t anchor( task_idx_.fetch_add( 1 ) );
         if( anchor >= IDXMAP_SIZE - 1 ) break;
-        FreqTableEntry fte;
-        fte.data.f.anchor = anchor;
         auto * ib( o_.begin( anchor ) ),
              * ie( o_.end( anchor ) ),
              * iie( ib );
@@ -639,9 +637,8 @@ inline void CFastSeedsIndex::CreateFreqTableJob::operator()()
 
             if( i > o_.cutoff_idx_ )
             {
-                fte.data.f.word = w;
-                fte.data.f.freq = i;
-                data_.freq_table_.push_back( fte );
+                data_.freq_table_.push_back(
+                    FreqTableEntry( anchor, w, i ) );
             }
         }
 
