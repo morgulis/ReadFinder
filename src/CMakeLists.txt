@@ -8,6 +8,10 @@ set( rf_includes ${CMAKE_CURRENT_BINARY_DIR}
 set( rf_libdir "" )
 set( rf_libs "" )
 
+find_package( ZLIB REQUIRED )
+set( rf_includes ${rf_includes} ${ZLIB_INCLUDE_DITS} )
+set( rf_libs ${rf_libs} ${ZLIB_LIBRARIES} )
+
 if( "$ENV{NCBI_BOOST}" STREQUAL "Y" )
     set( rf_includes ${rf_includes}
                      $ENV{BOOST_INCLUDE} )
