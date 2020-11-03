@@ -49,6 +49,10 @@ CFastSeeds::CFastSeeds( CBatch & bctx )
       anchor_use_map_( ANCHOR_TBL_SIZE, false )
 {
     bctx_.GetSearchCtx().refs->LoadAll();
+    auto & reads( bctx_.GetReads() );
+    size_t n_reads( reads.GetEndOId() - reads.GetStartOId() );
+    reads_per_bucket_ = n_reads/Hits::MAX_BUCKETS + 1;
+    start_oid_ = reads.GetStartOId();
     prescreen_ = bctx_.GetSearchCtx().pre_screen;
 }
 
@@ -644,11 +648,19 @@ inline void CFastSeeds::SeedSearchJob::PrepareIndex(
 inline void CFastSeeds::SeedSearchJob::SaveHit( 
         IndexEntry const & iw, HashWord const & hw )
 {
+    auto read_idx( hw.readid - o_.start_oid_ );
+    size_t bucket( read_idx/o_.reads_per_bucket_ );
+    auto & hits( jd_.results.data[bucket] );
+    hits.emplace_back();
+    auto & h( hits.back() );
+
+    h.refpos = iw.pos;
+    h.read = hw.readid;
+    h.readpos = hw.hashoff;
+    h.strand = (uint8_t)(hw.strand - 1);
+    h.mate = (uint8_t)(hw.mate - 1);
+
     ++jd_.hits;
-    TReadOff readoff( hw.hashoff );
-    Hit h { iw.pos, hw.readid, readoff,
-            (uint8_t)(hw.strand - 1), (uint8_t)(hw.mate - 1) };
-    jd_.results.push_back( h );
 }
 
 //------------------------------------------------------------------------------
@@ -783,51 +795,73 @@ inline void CFastSeeds::SeedSearchJob::operator()()
 //==============================================================================
 struct CFastSeeds::ReadMarkingJob
 {
-    typedef std::atomic< uint32_t > JobIdx;
     typedef std::tuple< OrdId, float, size_t, uint8_t > MarkedRead;
     typedef std::vector< MarkedRead > MarkedReads;
-    typedef CRefData::TRefOId TRefOId;
-    typedef std::pair< TRefOId, Hit > ExtHit;
-    typedef std::vector< ExtHit > ExtHits;
+    typedef std::pair<
+        Hits::Bucket::iterator, Hits::Bucket::iterator > ReadBounds;
+    typedef std::vector< Hit > ReadHits;
 
-    ReadMarkingJob( CFastSeeds & o, size_t & thread_idx, JobIdx & job_idx,
-                    std::vector< Hits > & hits,
-                    std::vector< MarkedReads > & marked_reads,
-                    CProgress::ProgressHandle & ph )
-        : o_( o ), job_idx_( job_idx ), hits_( hits ),
-          marked_reads_( marked_reads[thread_idx++] ),
-          per_mate_( o.bctx_.GetSearchCtx().per_mate_marks ),
-          ph_( ph )
+    ReadMarkingJob(
+        CFastSeeds & o, std::atomic< uint32_t > & job_idx,
+        std::vector< MarkedReads > & marked_reads,
+        std::vector< SeedSearchJobData > & ssjd,
+        CProgress::ProgressHandle & ph )
+        :   o_( o ), job_idx_( job_idx ),
+            marked_reads_( marked_reads ), ssjd_( ssjd ),
+            read_bounds_( ssjd_.size() ),
+            per_mate_( o.bctx_.GetSearchCtx().per_mate_marks ),
+            ph_( ph )
     {}
 
     void operator()();
-    void ProcessRead( ExtHits::const_iterator b, ExtHits::const_iterator e );
-    float ReadIsCovered( ExtHits::const_iterator b, ExtHits::const_iterator e );
+    void ProcessRead( OrdId read_id );
+
+    bool ProcessMate(
+        OrdId read_id, ReadHits::iterator b, ReadHits::iterator e );
+
+    bool ProcessStrand(
+        OrdId read_id, ReadHits::iterator b, ReadHits::iterator e );
+
+    bool MarkReads(
+        OrdId readid, TRefOId refid,
+        ReadHits::iterator b, ReadHits::iterator e );
 
     CFastSeeds & o_;
-    JobIdx & job_idx_;
-    JobIdx curr_job_idx_;
-    std::vector< Hits > & hits_;
-    MarkedReads & marked_reads_;
+    std::atomic< uint32_t > & job_idx_;
+    uint32_t curr_job_idx_;
+    std::vector< MarkedReads > & marked_reads_;
+    std::vector< SeedSearchJobData > & ssjd_;
+    std::vector< ReadBounds > read_bounds_;
     BitSet cover_;
+    ReadHits read_hits_;
     bool per_mate_ = false;
     CProgress::ProgressHandle & ph_;
 };
 
 //------------------------------------------------------------------------------
-inline float CFastSeeds::ReadMarkingJob::ReadIsCovered(
-        ExtHits::const_iterator b, ExtHits::const_iterator e )
+inline bool CFastSeeds::ReadMarkingJob::MarkReads(
+    OrdId readid, TRefOId refid, ReadHits::iterator b, ReadHits::iterator e )
 {
+    if( b == e ) return false;
+    std::sort(
+        b, e,
+        []( Hit const & x, Hit const & y )
+        { return x.GetDiag() == y.GetDiag() ?
+                 x.readpos < y.readpos :
+                 x.GetDiag() < y.GetDiag(); } );
+
     TSeqOff diag_delta( o_.bctx_.GetSearchCtx().max_diag_delta );
-    assert( b != e );
-    auto cth( o_.bctx_.GetSearchCtx().coverage_th );
+    auto const & read( o_.GetReads()[readid] );
+    auto mate( b->mate );
+    auto matelen( read.mates_[mate].len );
+    auto cth( o_.bctx_.GetSearchCtx().coverage_th*matelen );
     auto clenth( o_.bctx_.GetSearchCtx().covered_bases );
     TSeqOff d1( -diag_delta - cover_.size() - 1 ), dc( d1 );
-    cth = cover_.size()*cth;
+    auto & mr( marked_reads_[curr_job_idx_] );
 
     for( auto c( b ); b != e; ++b )
     {
-        auto d2( b->second.GetDiag() );
+        auto d2( b->GetDiag() );
 
         if( dc == d1 && d2 > d1 )
         {
@@ -840,7 +874,10 @@ inline float CFastSeeds::ReadMarkingJob::ReadIsCovered(
             if( cth <= 1.0f*cover_.count() &&
                 (size_t)clenth <= cover_.count() )
             {
-                return 1.0f*cover_.count()/cover_.size();
+                float res( 1.0f*cover_.count()/cover_.size() );
+                mr.push_back( std::make_tuple(
+                    readid, res, cover_.count(), mate ) );
+                return true;
             }
 
             cover_.reset();
@@ -848,9 +885,7 @@ inline float CFastSeeds::ReadMarkingJob::ReadIsCovered(
             d1 = dc;
         }
 
-        auto const & h( b->second );
-
-        for( ssize_t pos( h.readpos ), i( 0L );
+        for( ssize_t pos( b->readpos ), i( 0L );
              i < NMER_BASES && (size_t)pos < cover_.size(); ++pos, ++i )
         {
             cover_.set( pos );
@@ -859,142 +894,129 @@ inline float CFastSeeds::ReadMarkingJob::ReadIsCovered(
 
     if( cth <= 1.0f*cover_.count() && (size_t)clenth <= cover_.count() )
     {
-        return 1.0f*cover_.count()/cover_.size();
+        float res( 1.0f*cover_.count()/cover_.size() );
+        mr.push_back( std::make_tuple( readid, res, cover_.count(), mate ) );
+        return true;
     }
 
-    return -1.0f;
+    return false;
 }
 
 //------------------------------------------------------------------------------
-inline void CFastSeeds::ReadMarkingJob::ProcessRead(
-        ExtHits::const_iterator b, ExtHits::const_iterator e )
+inline bool CFastSeeds::ReadMarkingJob::ProcessStrand(
+    OrdId read_id, ReadHits::iterator b, ReadHits::iterator e )
 {
-    assert( b != e );
+    auto const & refs( o_.GetRefs() );
+    ReadHits::iterator refe( b );
 
-    auto const & read( o_.GetReads()[b->second.read] );
-    auto mate_idx( b->second.mate );
+    for( TRefOId i( 0 ), ie( refs.GetSize() ); i < ie; ++i )
+    {
+        auto pos_range( o_.fsidx_.GetAbsPosRange( i ) );
+        for( b = refe; b != e && b->refpos < pos_range.first; ++b );
+
+        for( refe = b; refe != e && refe->refpos < pos_range.second; ++refe )
+        {
+            refe->refpos -= pos_range.first;
+        }
+
+        if( MarkReads( read_id, i, b, refe ) ) return true;
+    }
+
+    return false;
+}
+
+//------------------------------------------------------------------------------
+inline bool CFastSeeds::ReadMarkingJob::ProcessMate(
+    OrdId read_id, ReadHits::iterator b, ReadHits::iterator e )
+{
+    if( b == e ) return false;
+    auto const & read( o_.GetReads()[read_id] );
+    auto mate_idx( b->mate );
     cover_.resize( read.mates_[mate_idx].len );
     cover_.reset();
+    auto strand_divide( std::find_if_not(
+        b, e, []( Hit const & x ) { return x.strand == 0; } ) );
+    return ProcessStrand( read_id, b, strand_divide ) ||
+           ProcessStrand( read_id, strand_divide, e );
+}
 
-    while( b != e )
+//------------------------------------------------------------------------------
+inline void CFastSeeds::ReadMarkingJob::ProcessRead( OrdId read_id )
+{
+    read_hits_.clear();
+
+    for( size_t j( 0 ), je( ssjd_.size() ); j < je; ++j )
     {
-        auto r( std::equal_range(
-                    b, e, *b,
-                    []( ExtHit const & x, ExtHit const & y )
-                    {
-                        return x.second.mate == y.second.mate ?
-                               x.second.strand == y.second.strand ?
-                               x.first < y.first :
-                               x.second.strand < y.second.strand :
-                               x.second.mate < y.second.mate;
-                    } ) );
+        auto & b( read_bounds_[j] );
+        while( b.first != b.second ) read_hits_.push_back( *b.first++ );
+    }
 
-        if( mate_idx != b->second.mate )
+    std::sort(
+        read_hits_.begin(), read_hits_.end(),
+        []( Hit const & x, Hit const & y )
         {
-            mate_idx = b->second.mate;
-            cover_.resize( read.mates_[mate_idx].len );
-            cover_.reset();
-        }
+            return  x.mate == y.mate ?
+                    x.strand == y.strand ?
+                    x.refpos < y.refpos :
+                    x.strand < y.strand :
+                    x.mate < y.mate;
+        } );
+    auto mate_divide( std::find_if_not(
+        read_hits_.begin(), read_hits_.end(),
+        []( Hit const & x ) { return x.read == 0; } ) );
 
-        float c( ReadIsCovered( r.first, r.second ) );
-
-        if( c >= 0.0f )
-        {
-            marked_reads_.push_back( std::make_tuple(
-                        b->second.read, c, cover_.count(), mate_idx ) );
-            return;
-        }
-
-        b = r.second;
+    if( !ProcessMate( read_id, read_hits_.begin(), mate_divide ) || per_mate_ )
+    {
+        ProcessMate( read_id, mate_divide, read_hits_.end() );
     }
 }
 
 //------------------------------------------------------------------------------
-inline void CFastSeeds::ReadMarkingJob::operator()()
+void CFastSeeds::ReadMarkingJob::operator()()
 {
-    ExtHits ehits;
+    size_t ssjd_size( ssjd_.size() );
 
     while( true )
     {
         curr_job_idx_ = job_idx_.fetch_add( 1 );
+        if( curr_job_idx_ >= Hits::MAX_BUCKETS ) break;
 
-        if( curr_job_idx_ >= hits_.size() )
+        // reorder hits per bucket by read id
+        //
+        for( auto & jd : ssjd_ )
         {
-            break;
+            auto & bucket( jd.results.data[curr_job_idx_] );
+            std::sort(
+                bucket.begin(), bucket.end(),
+                []( Hit const & x, Hit const & y )
+                { return x.read < y.read; } );
         }
 
-        // convert hits to extended hits
+        // find hits per read and process each read
         //
-        auto & hits( hits_[curr_job_idx_] );
-        std::sort( hits.begin(), hits.end(),
-                   []( Hit const & x, Hit const & y )
-                   { return x.refpos < y.refpos; } );
-        auto const & refs( o_.GetRefs() );
-        Hits::const_iterator hi( hits.begin() ),
-                             hie( hits.end() ),
-                             hc( hi );
-
-        for( TRefOId i( 0 ), ie( refs.GetSize() ); i < ie; ++i )
+        for( size_t j( 0 ); j < ssjd_size; ++j )
         {
-            auto refpos_range( o_.fsidx_.GetAbsPosRange( i ) );
-            for( ; hc != hie && hc->refpos < refpos_range.second; ++hc );
-
-            for( ; hi != hc; ++hi )
-            {
-                ehits.push_back( std::make_pair( i, *hi ) );
-                ehits.back().second.refpos -= refpos_range.first;
-            }
+            auto & bucket( ssjd_[j].results.data[curr_job_idx_] );
+            read_bounds_[j].second = bucket.begin();
         }
 
-        // free memory used by original hits
-        //
-        { Hits t; t.swap( hits ); }
+        OrdId read_id( o_.start_oid_ + curr_job_idx_*o_.reads_per_bucket_ );
 
-        // sort extended hits by read, ref, mate, strand, diag
-        //
-        std::sort( ehits.begin(), ehits.end(),
-                   []( ExtHit const & x, ExtHit const & y )
-                   {
-                        return x.second.read == y.second.read ?
-                               x.second.mate == y.second.mate ?
-                               x.second.strand == y.second.strand ?
-                               x.first == y.first ?
-                               x.second.GetDiag() < y.second.GetDiag() :
-                               x.first < y.first :
-                               x.second.strand < y.second.strand :
-                               x.second.mate < y.second.mate :
-                               x.second.read < y.second.read;
-                   } );
-
-        // process extended hits on a per-read basis
-        //
-        for( auto ehi( ehits.cbegin() ), ehie( ehits.cend() ); ehi != ehie; )
+        for( size_t i( 0 ); i < o_.reads_per_bucket_; ++i, ++read_id )
         {
-            if( per_mate_ )
+            for( size_t j( 0 ); j < ssjd_size; ++j )
             {
-                auto r( std::equal_range(
-                            ehi, ehie, *ehi,
-                            []( ExtHit const & x, ExtHit const & y )
-                            {
-                                return x.second.read == y.second.read ?
-                                       x.second.mate < y.second.mate :
-                                       x.second.read < y.second.read;
-                            } ) );
-                ProcessRead( r.first, r.second );
-                ehi = r.second;
+                auto & rb( read_bounds_[j] );
+                rb.first = rb.second;
+                auto & bucket( ssjd_[j].results.data[curr_job_idx_] );
+                rb.second = std::find_if_not(
+                    rb.first, bucket.end(),
+                    [read_id]( Hit const & x ) { return x.read == read_id; } );
             }
-            else
-            {
-                auto r( std::equal_range(
-                            ehi, ehie, *ehi,
-                            []( ExtHit const & x, ExtHit const & y )
-                            { return x.second.read < y.second.read; } ) );
-                ProcessRead( r.first, r.second );
-                ehi = r.second;
-            }
+
+            ProcessRead( read_id );
         }
 
-        ehits.clear();
         ph_.Increment();
     }
 }
@@ -1039,239 +1061,195 @@ inline void CFastSeeds::ComputeSeeds()
 
     // free memory used by reference and read index
     //
-    // fsidx_.Unload();
     { WordTable t; wt_.swap( t ); }
     { WordMap t; t.swap( wmap_ ); }
 
     // hit filtering
     //
+    ReadMarkingJob::MarkedReads result;
     {
-        size_t reads_per_job( bctx_.GetJobSize() );
-        assert( reads_per_job > 0 );
-        auto & reads( bctx_.GetReads() );
-        auto start_read( reads.GetStartOId() );
-        auto n_reads( reads.GetEndOId() - reads.GetStartOId() );
-        size_t n_jobs( n_reads/reads_per_job + 1 );
-        std::vector< Hits > filter_job_hits( n_jobs );
+        StopWatch w( ctx.logger_ );
+        CProgress p( "processing matches", "tasks", ctx.progress_flags_ );
+        auto ph( p.GetTop() );
+        ph.SetTotal( Hits::MAX_BUCKETS );
 
-        // distribute hits accross jobs
-        //
+        std::vector< ReadMarkingJob::MarkedReads > marked_reads(
+            Hits::MAX_BUCKETS );
+
+        std::atomic< uint32_t > job_idx( 0 );
+        CTaskArray< ReadMarkingJob > jobs(
+            ctx.n_threads, *this, job_idx, marked_reads, jd, ph );
+        p.Start();
+        jobs.Start();
+        p.Stop();
+
+        for( auto & mr : marked_reads )
         {
-            StopWatch w( ctx.logger_ );
-
-            {
-                size_t total_hits( 0 );
-
-                for( auto const & job_data : jd )
-                {
-                    total_hits += job_data.results.size();
-                }
-
-                M_INFO( ctx.logger_, "TOTAL HITS: " << total_hits );
-            }
-
-            M_INFO( ctx.logger_, "distributing hits..." );
-
-            for( auto & job_data : jd )
-            {
-                for( auto const & h : job_data.results )
-                {
-                    size_t job_num( (h.read - start_read)/reads_per_job );
-                    filter_job_hits[job_num].push_back( h );
-                }
-
-                // clean up search job results
-                //
-                {
-                    Hits t;
-                    t.swap( job_data.results );
-                }
-            }
-
-            M_INFO( ctx.logger_, "distributed hits for filtering" );
+            std::copy( mr.begin(), mr.end(),
+                       std::back_inserter( result ) );
+            ReadMarkingJob::MarkedReads t;
+            t.swap( mr );
         }
+    }
 
-        // hit fitering jobs
-        //
+    // sorting results
+    //
+    bool per_mate( bctx_.GetSearchCtx().per_mate_marks );
+    {
+        StopWatch w( ctx.logger_ );
+        M_INFO( ctx.logger_, "sorting results" );
+        std::sort( result.begin(), result.end(),
+                   []( ReadMarkingJob::MarkedRead const & x,
+                       ReadMarkingJob::MarkedRead const & y )
+                   {
+                        return std::get< 0 >( x )
+                                    == std::get< 0 >( y ) ?
+                               std::get< 3 >( x )
+                                    < std::get< 3 >( y ) :
+                               std::get< 0 >( x )
+                                    < std::get< 0 >( y );
+                   } );
+
+        if( per_mate )
         {
-            StopWatch w( ctx.logger_ );
+            M_INFO( ctx.logger_,
+                    "number of marked mates: " << result.size() );
+        }
+        else
+        {
+            M_INFO( ctx.logger_,
+                    "number of marked reads: " << result.size() );
+        }
+    }
 
-            std::atomic< uint32_t > job_idx( 0 );
-            CProgress p( "filtering initial seeds", "tasks",
-                         ctx.progress_flags_ );
-            auto ph( p.GetTop() );
-            ph.SetTotal( n_jobs );
+    // printing results
+    //
+    {
+        StopWatch w( ctx.logger_ );
+        M_INFO( ctx.logger_, "reporting results" );
+        auto const & reads( bctx_.GetReads() );
+        auto & os( bctx_.GetSearchCtx().GetOutStream() );
+        std::vector< char > seq;
+        typedef SEQ_NS::CRecoder< eIUPACNA, eNCBI2NA > R;
+        typedef CReadData::SeqConstView SeqView;
+        bctx_.GetSearchCtx().n_mapped_reads += result.size();
 
+        for( auto i : result )
+        {
+            auto const & read( reads[std::get< 0 >( i )] );
+            std::string id( reads.GetReadId( std::get< 0 >( i ) ) );
+
+            if( per_mate )
             {
-                bool per_mate( bctx_.GetSearchCtx().per_mate_marks );
-                std::vector< ReadMarkingJob::MarkedReads > marked_reads(
-                        ctx.n_threads );
-                size_t thread_idx( 0 );
-                CTaskArray< ReadMarkingJob > jobs(
-                        ctx.n_threads, *this, thread_idx, job_idx,
-                        filter_job_hits, marked_reads, ph );
-                p.Start();
-                jobs.Start();
-                ReadMarkingJob::MarkedReads result;
+                auto mate_idx( std::get< 3 >( i ) );
+                auto len( read.mates_[mate_idx].len );
+                os << ">" << id;
 
-                for( auto & mr : marked_reads )
+                if( read.ReadIsPaired() )
                 {
-                    std::copy( mr.begin(), mr.end(),
-                               std::back_inserter( result ) );
-                    ReadMarkingJob::MarkedReads t;
-                    t.swap( mr );
+                    os << '.' << mate_idx + 1;
                 }
 
-                std::sort( result.begin(), result.end(),
-                           []( ReadMarkingJob::MarkedRead const & x,
-                               ReadMarkingJob::MarkedRead const & y )
-                           {
-                                return std::get< 0 >( x )
-                                            == std::get< 0 >( y ) ?
-                                       std::get< 3 >( x )
-                                            < std::get< 3 >( y ) :
-                                       std::get< 0 >( x )
-                                            < std::get< 0 >( y );
-                           } );
+                os << " " << std::get< 1 >( i )
+                   << " " << std::get< 2 >( i )
+                   << '\n';
+                seq.clear();
+                seq.resize( len + 1, 0 );
+                auto sd( reads.GetSeqData( std::get< 0 >( i ),
+                                           ToMate( mate_idx ),
+                                           eFWD ) ),
+                     md( reads.GetMaskData( std::get< 0 >( i ),
+                                            ToMate( mate_idx ),
+                                            eFWD ) );
 
-                if( per_mate )
+                for( TSeqLen j( 0 ); j < len; ++j )
                 {
-                    M_INFO( ctx.logger_,
-                            "number of marked mates: " << result.size() );
-                }
-                else
-                {
-                    M_INFO( ctx.logger_,
-                            "number of marked reads: " << result.size() );
-                }
-
-                auto const & reads( bctx_.GetReads() );
-                auto & os( bctx_.GetSearchCtx().GetOutStream() );
-                std::vector< char > seq;
-                typedef SEQ_NS::CRecoder< eIUPACNA, eNCBI2NA > R;
-                typedef CReadData::SeqConstView SeqView;
-                bctx_.GetSearchCtx().n_mapped_reads += result.size();
-
-                for( auto i : result )
-                {
-                    auto const & read( reads[std::get< 0 >( i )] );
-                    std::string id( reads.GetReadId( std::get< 0 >( i ) ) );
-
-                    if( per_mate )
+                    if( md.GetLetter( j ) == SeqView::Code::MASK_BASE )
                     {
-                        auto mate_idx( std::get< 3 >( i ) );
-                        auto len( read.mates_[mate_idx].len );
-                        os << ">" << id;
-
-                        if( read.ReadIsPaired() )
-                        {
-                            os << '.' << mate_idx + 1;
-                        }
-
-                        os << " " << std::get< 1 >( i )
-                           << " " << std::get< 2 >( i )
-                           << '\n';
-                        seq.clear();
-                        seq.resize( len + 1, 0 );
-                        auto sd( reads.GetSeqData( std::get< 0 >( i ),
-                                                   ToMate( mate_idx ),
-                                                   eFWD ) ),
-                             md( reads.GetMaskData( std::get< 0 >( i ),
-                                                    ToMate( mate_idx ),
-                                                    eFWD ) );
-
-                        for( TSeqLen j( 0 ); j < len; ++j )
-                        {
-                            if( md.GetLetter( j ) == SeqView::Code::MASK_BASE )
-                            {
-                                seq[j] = 'N';
-                            }
-                            else
-                            {
-                                seq[j] = R::Recode( sd.GetLetter( j ) );
-                            }
-                        }
-
-                        os << &seq[0] << '\n';
+                        seq[j] = 'N';
                     }
                     else
                     {
-                        if( read.mates_[0].len > 0 )
-                        {
-                            auto len( read.mates_[0].len );
-                            os << ">" << id;
-
-                            if( read.ReadIsPaired() )
-                            {
-                                os << ".1";
-                            }
-
-                            os << " " << std::get< 1 >( i )
-                               << " " << std::get< 2 >( i );
-                            os << '\n';
-                            seq.clear();
-                            seq.resize( len + 1, 0 );
-                            auto sd( reads.GetSeqData(
-                                        std::get< 0 >( i ), eFIRST, eFWD ) ),
-                                 md( reads.GetMaskData(
-                                        std::get< 0 >( i ), eFIRST, eFWD ) );
-
-                            for( TSeqLen j( 0 ); j < len; ++j )
-                            {
-                                if( md.GetLetter( j ) ==
-                                        SeqView::Code::MASK_BASE )
-                                {
-                                    seq[j] = 'N';
-                                }
-                                else
-                                {
-                                    seq[j] = R::Recode( sd.GetLetter( j ) );
-                                }
-                            }
-
-                            os << &seq[0] << '\n';
-                        }
-
-                        if( read.mates_[1].len > 0 )
-                        {
-                            auto len( read.mates_[1].len );
-                            os << ">" << id;
-
-                            if( read.ReadIsPaired() )
-                            {
-                                os << ".2";
-                            }
-
-                            os << " " << std::get< 1 >( i )
-                               << " " << std::get< 2 >( i );
-                            os << '\n';
-                            seq.clear();
-                            seq.resize( len + 1, 0 );
-                            auto sd( reads.GetSeqData(
-                                        std::get< 0 >( i ), eSECOND, eFWD ) ),
-                                md( reads.GetMaskData(
-                                        std::get< 0 >( i ), eSECOND, eFWD ) );
-
-                            for( TSeqLen j( 0 ); j < len; ++j )
-                            {
-                                if( md.GetLetter( j ) ==
-                                        SeqView::Code::MASK_BASE )
-                                {
-                                    seq[j] = 'N';
-                                }
-                                else
-                                {
-                                    seq[j] = R::Recode( sd.GetLetter( j ) );
-                                }
-                            }
-
-                            os << &seq[0] << '\n';
-                        }
+                        seq[j] = R::Recode( sd.GetLetter( j ) );
                     }
                 }
-            }
 
-            p.Stop();
+                os << &seq[0] << '\n';
+            }
+            else
+            {
+                if( read.mates_[0].len > 0 )
+                {
+                    auto len( read.mates_[0].len );
+                    os << ">" << id;
+
+                    if( read.ReadIsPaired() )
+                    {
+                        os << ".1";
+                    }
+
+                    os << " " << std::get< 1 >( i )
+                       << " " << std::get< 2 >( i );
+                    os << '\n';
+                    seq.clear();
+                    seq.resize( len + 1, 0 );
+                    auto sd( reads.GetSeqData(
+                                std::get< 0 >( i ), eFIRST, eFWD ) ),
+                         md( reads.GetMaskData(
+                                std::get< 0 >( i ), eFIRST, eFWD ) );
+
+                    for( TSeqLen j( 0 ); j < len; ++j )
+                    {
+                        if( md.GetLetter( j ) ==
+                                SeqView::Code::MASK_BASE )
+                        {
+                            seq[j] = 'N';
+                        }
+                        else
+                        {
+                            seq[j] = R::Recode( sd.GetLetter( j ) );
+                        }
+                    }
+
+                    os << &seq[0] << '\n';
+                }
+
+                if( read.mates_[1].len > 0 )
+                {
+                    auto len( read.mates_[1].len );
+                    os << ">" << id;
+
+                    if( read.ReadIsPaired() )
+                    {
+                        os << ".2";
+                    }
+
+                    os << " " << std::get< 1 >( i )
+                       << " " << std::get< 2 >( i );
+                    os << '\n';
+                    seq.clear();
+                    seq.resize( len + 1, 0 );
+                    auto sd( reads.GetSeqData(
+                                std::get< 0 >( i ), eSECOND, eFWD ) ),
+                        md( reads.GetMaskData(
+                                std::get< 0 >( i ), eSECOND, eFWD ) );
+
+                    for( TSeqLen j( 0 ); j < len; ++j )
+                    {
+                        if( md.GetLetter( j ) ==
+                                SeqView::Code::MASK_BASE )
+                        {
+                            seq[j] = 'N';
+                        }
+                        else
+                        {
+                            seq[j] = R::Recode( sd.GetLetter( j ) );
+                        }
+                    }
+
+                    os << &seq[0] << '\n';
+                }
+            }
         }
     }
 }
