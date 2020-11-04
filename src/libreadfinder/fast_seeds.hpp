@@ -81,7 +81,13 @@ private:
     struct Hit
     {
         uint32_t refpos;
-        OrdId read;
+
+        union {
+            OrdId read;
+            TRefOId refseq;
+            uint32_t len;
+        };
+
         TReadOff readpos;
         uint8_t strand : 1;
         uint8_t mate : 1;
@@ -94,28 +100,19 @@ private:
                << (int)h.strand << ':' << (int)h.mate;
             return os;
         }
-
-        friend bool operator<( Hit const & x, Hit const & y )
-        {
-            // ASSUMPTION: x and y are from the same reference
-            //
-            auto tx( (x.strand + x.mate)%2 ),
-                 ty( (y.strand + y.mate)%2 );
-            int64_t dx( x.refpos - x.readpos ),
-                    dy( y.refpos - y.readpos );
-            return x.read == y.read ?
-                   tx == ty ?
-                   x.strand == y.strand ?
-                   dx < dy :
-                   x.strand < y.strand :
-                   tx < ty :
-                   x.read < y.read;
-        }
     };
 
     static_assert( sizeof( Hit ) == 12, "" );
 
-    typedef std::deque< Hit > Hits;
+    struct Hits
+    {
+        static constexpr size_t const MAX_BUCKETS = 1024ULL;
+        typedef std::deque< Hit > Bucket;
+        typedef std::vector< Bucket > Data;
+
+        Data data = Data( MAX_BUCKETS );
+    };
+
     typedef HashWord TaskEntry;
 
     struct HitFilteringJob;
@@ -140,6 +137,8 @@ private:
     WordTable wt_;
     WordMap wmap_ = WordMap( WMAP_SIZE, 0 );
     BitSet anchor_use_map_;
+    size_t reads_per_bucket_ = 0;
+    OrdId start_oid_ = 0;
     bool prescreen_ = false;
 };
 

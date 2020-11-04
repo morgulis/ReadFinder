@@ -55,7 +55,6 @@ public:
     CSearchContext const & GetSearchCtx() const { return ctx_; }
     CSearchContext & GetSearchCtx() { return ctx_; }
     CReadData const & GetReads() const { return *reads_; }
-    size_t GetJobSize() const { return reads_per_job_; }
 
 private:
 
@@ -63,14 +62,10 @@ private:
 
     static std::vector< std::string > const BatchStatDescriptions;
 
-    // void OutputThread();
-
     CSearchContext & ctx_;
     std::unique_ptr< CReadData > reads_;
-    // OutStr out_str_;
     std::mutex out_mtx_;
     std::condition_variable out_cvar_;
-    size_t reads_per_job_;
     size_t batch_num_ = 0;
 };
 

@@ -47,24 +47,6 @@ CBatch::CBatch( CSearchContext & ctx, size_t batch_num )
       batch_num_( batch_num )
 {
     ctx_.n_reads += reads_->GetNReads();
-
-    // estimate the number of sub-batches
-    //
-    {
-        static size_t const CFACTOR = 100;
-
-        auto n_threads( ctx_.n_threads );
-        auto n_reads( reads_->GetNReads() );
-
-        if( n_reads > n_threads*CFACTOR )
-        {
-            reads_per_job_ = n_reads/(n_threads*CFACTOR) + 1;
-        }
-        else
-        {
-            reads_per_job_ = n_reads/n_threads + 1;
-        }
-    }
 }
 
 //------------------------------------------------------------------------------
