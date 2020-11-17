@@ -33,6 +33,8 @@ Build ReadFinder (note: the order of options is important).
 `--no-boost` can be specified if there is a system wide installation of boost version at least 1.63.
 `--no-ngs` can be specified to disable support for direct access to SRA.
 
+The last argument must be an absolute path to the build directory.
+
 If the build is successful, then `readfinder` executable will appear in
 `build/readfinder/build/readfinder/` sub-directory of `$ROOT`.
 
