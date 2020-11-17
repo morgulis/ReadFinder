@@ -60,6 +60,12 @@ if [[ -e $1 ]] ; then
 fi
 
 root=$1
+
+case $root in
+    /*) echo "building in $root" ;;
+    *)  echo "ERROR: last argument must be an absolute path" ; echo "$USAGE" ; exit 1 ;;
+esac
+
 mkdir $root || { echo "can't create $root" ; exit 1 ; }
 pushd $root > /dev/null
 
