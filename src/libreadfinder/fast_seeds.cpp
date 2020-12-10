@@ -963,7 +963,7 @@ inline void CFastSeeds::ReadMarkingJob::ProcessRead( OrdId read_id )
         } );
     auto mate_divide( std::find_if_not(
         read_hits_.begin(), read_hits_.end(),
-        []( Hit const & x ) { return x.read == 0; } ) );
+        []( Hit const & x ) { return x.mate == 0; } ) );
 
     if( !ProcessMate( read_id, read_hits_.begin(), mate_divide ) || per_mate_ )
     {
