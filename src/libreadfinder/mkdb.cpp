@@ -426,7 +426,7 @@ void CreateWorkSet(
 
     if( !ofs )
     {
-        M_THROW( "error opening index map file "<< fname << " for writing" );
+        M_THROW( "error opening word set file "<< fname << " for writing" );
     }
 
     ofs.exceptions( std::ios_base::badbit );

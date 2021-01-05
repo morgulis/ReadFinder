@@ -51,7 +51,7 @@ using namespace READFINDER_NS;
 namespace
 {
 
-static std::string const VERSION_STRING = "0.9.1";
+static std::string const VERSION_STRING = "0.9.2";
 
 namespace po = boost::program_options;
 
