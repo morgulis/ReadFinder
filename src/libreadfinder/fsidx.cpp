@@ -308,7 +308,7 @@ inline void CFastSeedsIndex::IndexNMerCountingJob::operator()()
 
         while( ies )
         {
-            if( GetNSet( ims.GetNMer() ) <= LB )
+            if( GetNSet( ims.GetNMer() ) == 0 )
             {
                 ++pij_data_.idxmap[ies.GetAnchor()];
             }
@@ -387,7 +387,7 @@ inline void CFastSeedsIndex::PopulateIndexJob::operator()()
 
         while( ies )
         {
-            if( GetNSet( ims.GetNMer() ) <= LB )
+            if( GetNSet( ims.GetNMer() ) == 0 )
             {
                 auto anchor( ies.GetAnchor() );
                 IndexEntry ie;
