@@ -850,14 +850,43 @@ inline bool CFastSeeds::ReadMarkingJob::MarkReads(
                  x.readpos < y.readpos :
                  x.GetDiag() < y.GetDiag(); } );
 
-    TSeqOff diag_delta( o_.bctx_.GetSearchCtx().max_diag_delta );
+    auto & mr( marked_reads_[curr_job_idx_] );
     auto const & read( o_.GetReads()[readid] );
     auto mate( b->mate );
     auto matelen( read.mates_[mate].len );
     auto cth( o_.bctx_.GetSearchCtx().coverage_th*matelen );
     auto clenth( o_.bctx_.GetSearchCtx().covered_bases );
+    auto const & cont_bases( o_.bctx_.GetSearchCtx().continuous_bases );
+
+    // check for continuous bases condition
+    //
+    if( cont_bases > NMER_BASES )
+    {
+        TReadLen clen( NMER_BASES );
+
+        for( auto c( b ), d( b+1 ); d != e; ++c, ++d )
+        {
+            if( c->GetDiag() == d->GetDiag() &&
+                c->readpos + NMER_BASES >= d->readpos )
+            {
+                clen += (d->readpos - c->readpos);
+                if( clen >= cont_bases ) break;
+            }
+            else clen = NMER_BASES;
+        }
+
+        if( clen < cont_bases ) return false;
+
+        if( clen >= clenth && 1.0f*clen >= cth )
+        {
+            float res( 1.0f*clen/matelen );
+            mr.push_back( std::make_tuple( readid, res, clen, mate ) );
+            return true;
+        }
+    }
+
+    TSeqOff diag_delta( o_.bctx_.GetSearchCtx().max_diag_delta );
     TSeqOff d1( -diag_delta - cover_.size() - 1 ), dc( d1 );
-    auto & mr( marked_reads_[curr_job_idx_] );
 
     for( auto c( b ); b != e; ++b )
     {

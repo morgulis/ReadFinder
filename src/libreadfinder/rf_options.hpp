@@ -151,6 +151,9 @@ struct CSearchOptions : public CommonOptions
     ///< Seeder min matched bases threshold
     TReadLen covered_bases = 0;
 
+    ///< Minimum continuously covered bases
+    TReadLen continuous_bases = 0;
+
     ///< Max difference in diagonals between hits within a chain.
     TReadLen max_diag_delta = 4;
 
