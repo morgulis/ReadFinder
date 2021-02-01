@@ -365,6 +365,16 @@ Default: standard output
 Name of the output Fasta file containing matching reads.
 
 -----------------------------------
+```--continuous-bases [-C] <non-negative_int>```
+
+Default: `21`
+
+Minimum length of coninuous exact match needed to select the
+sequence as matching. A sequence is selected if it satisfies
+`--continuous-bases`, `--covered-bases` constraint,
+and `--coverage-ratio` constraint.
+
+-----------------------------------
 ```--covered-bases [-B] <non-negative_int>```
 
 Default: `0`
@@ -372,8 +382,8 @@ Default: `0`
 Minimum number of bases covered by matches within a diagonal
 band (see `--max-diag-delta` option) needed to select the
 sequence as matching. A sequence is selected if it satisfies
-both `--covered-bases` constraint and `--coverage-ratio`
-constraint.
+`--continuous-bases`, `--covered-bases` constraint, and
+`--coverage-ratio` constraint.
 
 -----------------------------------
 ```--coverage-ratio [-c] <float>```
@@ -384,8 +394,8 @@ The value must be between `0.0` and `1.0`. The minimum
 proportion of bases covered by matches within a diagonal
 band (see `--max-diag-delta` option) needed to select the
 sequence as matching. A sequence is selected if it satisfies
-both `--covered-bases` constraint and `--coverage-ratio`
-constraint.
+`--continuous-bases`, `--covered-bases` constraint, and
+`--coverage-ratio` constraint.
 
 -----------------------------------
 ```--max-diag-delta [-D] <non-negative_int>```
