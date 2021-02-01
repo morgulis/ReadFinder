@@ -51,7 +51,7 @@ using namespace READFINDER_NS;
 namespace
 {
 
-static std::string const VERSION_STRING = "0.9.2";
+static std::string const VERSION_STRING = "0.9.3";
 
 namespace po = boost::program_options;
 
@@ -260,6 +260,10 @@ std::shared_ptr< Action > ParseOptions( int argc, char ** argv )
         ( "output,o",
           po::value< std::string >( &search_opts.output ),
           "output file name [default: <stdout>]" )
+        ( "continuous-bases,C",
+          po::value< TReadLen >( &search_opts.continuous_bases ),
+          "length of min exact match needed to mark read as matched "
+          "(must be >= 21) [default: 21]" )
         ( "covered-bases,B",
           po::value< TReadLen >( &search_opts.covered_bases ),
           "min number of matched bases needed to mark read as matched "
