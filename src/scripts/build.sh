@@ -31,7 +31,8 @@ USAGE build.sh [--no-boost] [--no-ngs] install-root-dir
 # initial setup
 #
 
-BOOST_DIST="https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.tar.bz2"
+# BOOST_DIST="https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.tar.bz2"
+BOOST_DIST="https://archives.boost.io/release/1.85.0/source/boost_1_85_0.tar.bz2"
 
 if [[ $# < 1 ]] ; then echo "$USAGE" ; exit 1 ; fi
 
@@ -111,7 +112,9 @@ fi
 #
 if [[ $ngs == 1 ]] ; then
     NGSDIR="NGS" ;
-    mkdir -p $NGSDIR/ngs-src $NGSDIR/ngs $NGSDIR/vdb-src $NGSDIR/vdb $NGSDIR/build || \
+    mkdir -p $NGSDIR/ngs-src $NGSDIR/ngs \
+             $NGSDIR/vdb-src $NGSDIR/vdb \
+             $NGSDIR/sratk-src $NGSDIR/build || \
         { echo "can't create $NGSDIR or its subdirectory" ; exit 1; } ;
 
 ################################################################################
@@ -141,11 +144,28 @@ if [[ $ngs == 1 ]] ; then
     git clone https://github.com/ncbi/ncbi-vdb.git || \
         { echo "failed to clone ncbi-vdb" ; exit 1 ; } ;
     cd ncbi-vdb ;
-    ./configure --prefix=$root/$NGSDIR/vdb --build-prefix=$root/$NGSDIR/build \
-        --with-ngs-sdk-prefix=$root/$NGSDIR/ngs || \
+#    ./configure --prefix=$root/$NGSDIR/vdb --build-prefix=$root/$NGSDIR/build \
+#        --with-ngs-sdk-prefix=$root/$NGSDIR/ngs || \
+    ./configure --prefix=$root/$NGSDIR/vdb --build-prefix=$root/$NGSDIR/build || \
         { echo "ncbi-vdb configure failed" ; exit 1 ; } ;
     make || { echo "ncbi-vdb make failed" ; exit 1 ; } ;
     make install || { echo "ncbi-vdb install failed" ; exit 1 ; } ;
+    popd > /dev/null ;
+
+################################################################################
+#
+# Build SRA tools libraries
+#
+    pushd $NGSDIR/sratk-src > /dev/null ;
+    git clone https://github.com/ncbi/sra-tools.git || \
+        { echo "failed to clone sra-tools" ; exit 1 ; } ;
+    cd sra-tools ;
+    ./configure --prefix=$root/$NGSDIR/vdb \
+                --with-ncbi-vdb-prefix=$root/$NGSDIR/vdb \
+                --build-prefix=$root/$NGSDIR/build || \
+        { echo "sra-tools configure failed" ; exit 1 ; } ;
+    make || { echo "sra-tools make failed" ; exit 1 ; } ;
+    make install || { echo "sra-tools install failed" ; exit 1 ; } ;
     popd > /dev/null ;
 
 fi

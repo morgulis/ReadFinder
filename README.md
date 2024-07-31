@@ -9,7 +9,7 @@ NCBI SRA archive, NCBI NGS and VDB libraries must be installed.
 The sections below describe how to install these prerequisites.
 
 In the following we assume that all the commands are performed under a
-directory pointed to by environment variable `ROOT`. So the first command
+directory pointed to by environment variable `ROOT`, so the first command
 to do is to change into that directory.
 
 ```
@@ -43,7 +43,7 @@ If the build is successful, then `readfinder` executable will appear in
 If Boost development packages are not already installed on the system, or if
 Boost version is too old, the following describes how to install it locally.
 
-Assuming we are in `$ROOT` directory, create subdirectory for boost distribution.
+Assuming we are in `$ROOT` directory, create subdirectory for Boost distribution.
 
 ```
 > mkdir -p boost/download boost/src boost/install

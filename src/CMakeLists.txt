@@ -41,7 +41,7 @@ if( "${ENABLE_NGS}" STREQUAL "Y" )
                    $ENV{NGS_ROOT}/lib64
                    $ENV{VDB_ROOT}/lib64 )
     set( rf_libs ${rf_libs}
-                 ncbi-ngs-c++ ngs-c++ ncbi-vdb )
+                 ncbi-ngs-c++ ngs-c++ ncbi-ngs-static ncbi-vdb-static )
 else()
     if( "${ENABLE_NGS}" STREQUAL "static" )
         set( USE_NGS "1" )
@@ -54,7 +54,7 @@ else()
                        $ENV{NGS_ROOT}/lib64
                        $ENV{VDB_ROOT}/lib64 )
         set( rf_libs ${rf_libs}
-                     ncbi-ngs-c++-static ngs-c++-static ncbi-vdb-static )
+                     ncbi-ngs-c++-static ngs-c++-static ncbi-ngs-static ncbi-vdb-static )
     endif()
 endif()
 
