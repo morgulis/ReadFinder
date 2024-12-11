@@ -9,7 +9,7 @@ set( rf_libdir "" )
 set( rf_libs "" )
 
 find_package( ZLIB REQUIRED )
-set( rf_includes ${rf_includes} ${ZLIB_INCLUDE_DITS} )
+set( rf_includes ${rf_includes} ${ZLIB_INCLUDE_DIRS} )
 set( rf_libs ${rf_libs} ${ZLIB_LIBRARIES} )
 
 if( "$ENV{NCBI_BOOST}" STREQUAL "Y" )
@@ -63,7 +63,7 @@ link_directories( ${rf_libdir} )
 
 if( "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" )
     set( ATB_GCC "1" )
-    set( CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -std=gnu++11 -Wall -pthread " )
+    set( CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -Wno-unknown-pragmas -std=gnu++11 -Wall -pthread " )
     set( CMAKE_CXX_FLAGS_DEBUG " ${CMAKE_CXX_FLAGS_DEBUG} -O0 " )
 
     if( "${CMAKE_BUILD_TYPE}" STREQUAL "Debug" )
