@@ -49,31 +49,31 @@ Assuming we are in `$ROOT` directory, create subdirectory for Boost distribution
 > mkdir -p boost/download boost/src boost/install
 ```
 
-Download the latest stable version (1.72.0 at the time of this writing)
+Download the latest stable version (1.85.0 at the time of this writing)
 
 ```
 > pushd boost/download
-> wget https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.tar.bz2
+> wget https://archives.boost.io/release/1.85.0/source/boost_1_85_0.tar.bz2
 > popd
 ```
 
-Now `$ROOT/boost/download` contains file `boost_1_72_0.tar.bz2`.
+Now `$ROOT/boost/download` contains file `boost_1_85_0.tar.bz2`.
 
 Next, unpack boost into `$ROOT/boost/src` directory.
 
 ```
 > pushd boost/src
-> tar xvjf ../download/boost_1_72_0.tar.bz2
+> tar xvjf ../download/boost_1_85_0.tar.bz2
 ```
 
-This puts boost source distribution under `$ROOT/boost/src/boost_1_72_0`.
+This puts boost source distribution under `$ROOT/boost/src/boost_1_85_0`.
 
 Next build boost and install libraries, and headers under
 `$ROOT/boost/install`.
 
 ```
-> cd boost_1_72_0
-> ./bootstrap.sh --prefix=$ROOT/boost/install
+> cd boost_1_85_0
+> ./bootstrap.sh --with-libraries=program_options,iostreams --prefix=$ROOT/boost/install
 > ./b2 install
 > popd
 ```

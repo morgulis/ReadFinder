@@ -565,10 +565,10 @@ inline void CopyData(
 
     size_t n_bits( (n_units%WUNITS)*T_UNIT ),
            low_bits( std::min( n_bits, WBITS - di ) );
-    T_Word w( GetWord( src, si ) );
 
     if( n_bits > 0 )
     {
+        T_Word w( GetWord( src, si ) );
         SetField( *dst, SelectBits( w, 0, low_bits ), di, di + low_bits );
 
         if( low_bits < n_bits )
